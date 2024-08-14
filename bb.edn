@@ -1,0 +1,21 @@
+{:paths ["bb"]
+
+ :deps
+ {}
+
+ :tasks
+ {clj:repl
+  {:doc "Start repl"
+   :task (shell "clojure -M:repl")}
+
+  bb:repl
+  {:doc "bb nrepl server"
+   :task (shell "bb nrepl-server")}
+
+  test
+  {:doc "Run tests"
+   :task (shell "./bin/kaocha")}
+
+  test:watch
+  {:doc "Run tests watch mode"
+   :task (shell "./bin/kaocha --watch")}}}
