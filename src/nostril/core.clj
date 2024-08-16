@@ -16,11 +16,10 @@
 (defmulti read-event
   (fn [x]
     (let [[type & _] (j/read-value x)]
+      (print "Type: " type)
       type)))
 
 (defmethod read-event "EVENT" [raw-event]
-  (println "event")
-
   (let [[_type _subscription-id body] (j/read-value raw-event j/keyword-keys-object-mapper)]
     (println body)))
 
@@ -34,4 +33,5 @@
 
 (comment
   (s/put! @client fetch-request)
-  (read-event @(s/take! @client)))
+  (read-event @(s/take! @client ::drained))
+  (s/consume read-event @client))
