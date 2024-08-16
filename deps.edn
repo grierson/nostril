@@ -2,12 +2,11 @@
 
  :deps
  {org.clojure/clojure {:mvn/version "1.11.3"} ; clojure
-  org.clojure/core.async {:mvn/version "1.6.673"} ; async
   hashp/hashp {:mvn/version "0.2.2"} ; pp
-  com.taoensso/sente {:mvn/version "1.19.2"} ; websockets
-  aleph/aleph {:mvn/version "0.8.1"}
-  manifold/manifold {:mvn/version "0.4.3"}
-  metosin/jsonista {:mvn/version "0.3.10"}}
+  aleph/aleph {:mvn/version "0.8.1"} ; websockets
+  manifold/manifold {:mvn/version "0.4.3"} ; async
+  metosin/jsonista {:mvn/version "0.3.10"} ; json
+  }
 
  :aliases
  {:repl
