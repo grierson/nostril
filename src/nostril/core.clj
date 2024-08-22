@@ -1,5 +1,6 @@
 (ns nostril.core
   (:require
+   [hashp.core]
    [aleph.http :as http]
    [jsonista.core :as json]
    [manifold.stream :as s]
@@ -9,10 +10,14 @@
 
 (def hex-32 [:string {:min 64 :max 64}])
 (def hex-64 [:string {:min 128 :max 128}])
-(def Kind [:int {:min 0 :max 65535}])
-(def uri-schema [uri? {:decode/string (fn [s] (java.net.URI/create s))}])
-(def Relay-url [:? uri-schema])
-(def unix-timestamp [:int {:min 1000000000 :max 9999999999}])
+(def Relay-url [:? [uri? {:decode/string (fn [s] (java.net.URI/create s))}]])
+
+(def datetime [inst? {:encode/string (fn [s] #p (type s) s)
+                      :decode/string (fn [s] (java.time.Instant/ofEpochSecond s))}])
+
+(comment
+  ; Generate java.util.Date not java.time.Instant
+  (type (mg/generate datetime)))
 
 (def TagE [:catn
            [:type [:= "e"]]
@@ -33,8 +38,9 @@
   [:map
    [:id hex-32]
    [:pubkey hex-32]
-   [:created_at unix-timestamp]
-   [:kind Kind]
+   [:created_at [inst? {:encode/string (fn [s] #p (type s) s)
+                        :decode/string (fn [s] (java.time.Instant/ofEpochSecond s))}]]
+   [:kind [:int {:min 0 :max 65535}]]
    [:tags [:sequential [:alt TagA TagE TagP]]]
    [:content string?]
    [:sig hex-64]])
