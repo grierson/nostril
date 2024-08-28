@@ -10,14 +10,7 @@
 
 (def hex-32 [:string {:min 64 :max 64}])
 (def hex-64 [:string {:min 128 :max 128}])
-(def Relay-url [:? [uri? {:decode/string (fn [s] (java.net.URI/create s))}]])
-
-(def datetime [inst? {:encode/string (fn [s] #p (type s) s)
-                      :decode/string (fn [s] (java.time.Instant/ofEpochSecond s))}])
-
-(comment
-  ; Generate java.util.Date not java.time.Instant
-  (type (mg/generate datetime)))
+(def Relay-url [:? uri?])
 
 (def TagE [:catn
            [:type [:= "e"]]
@@ -38,8 +31,9 @@
   [:map
    [:id hex-32]
    [:pubkey hex-32]
-   [:created_at [inst? {:encode/string (fn [s] #p (type s) s)
-                        :decode/string (fn [s] (java.time.Instant/ofEpochSecond s))}]]
+   [:created_at [:int {:min 0
+                       :max 9999999999999
+                       :decode/time (fn [t] (java.time.Instant/ofEpochSecond t))}]]
    [:kind [:int {:min 0 :max 65535}]]
    [:tags [:sequential [:alt TagA TagE TagP]]]
    [:content string?]
@@ -51,8 +45,7 @@
    [:subscription-id string?]
    [:event Event]])
 
-(comment
-  (mg/generate ResponseEvent))
+(comment (mg/generate ResponseEvent))
 
 (def client
   (try
@@ -87,5 +80,5 @@
 (comment
   (s/put! @client fetch-request)
   (s/put! @client close-request)
-  (read-event @(s/take! @client ::drained))
+  (def temp-event (read-event @(s/take! @client ::drained)))
   (s/consume read-event @client))
