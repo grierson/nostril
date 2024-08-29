@@ -11,6 +11,7 @@
 (def hex-32 [:string {:min 64 :max 64}])
 (def hex-64 [:string {:min 128 :max 128}])
 (def Relay-url [:? uri?])
+(def Timestamp [:int {:min 0 :max 9999999999999}])
 
 (def TagE [:catn
            [:type [:= "e"]]
@@ -31,21 +32,20 @@
   [:map
    [:id hex-32]
    [:pubkey hex-32]
-   [:created_at [:int {:min 0
-                       :max 9999999999999
-                       :decode/time (fn [t] (java.time.Instant/ofEpochSecond t))}]]
+   [:created_at Timestamp]
    [:kind [:int {:min 0 :max 65535}]]
    [:tags [:sequential [:alt TagA TagE TagP]]]
-   [:content string?]
+   [:content :string]
    [:sig hex-64]])
 
 (def ResponseEvent
   [:catn
    [:type [:= "EVENT"]]
-   [:subscription-id string?]
+   [:subscription-id :string]
    [:event Event]])
 
-(comment (mg/generate ResponseEvent))
+(comment
+  (mg/generate ResponseEvent))
 
 (def client
   (try
@@ -65,17 +65,17 @@
     (let [[type & _] (json/read-value x)]
       type)))
 
-(defmethod read-event "EVENT" [raw-event]
-  (let [plain-event (json/read-value raw-event json/keyword-keys-object-mapper)]
-    (m/decode ResponseEvent plain-event mt/string-transformer)))
+(defmethod read-event "EVENT" [json-event]
+  (let [event (json/read-value json-event json/keyword-keys-object-mapper)]
+    (m/decode ResponseEvent event mt/string-transformer)))
 
-(defmethod read-event "EOSE" [params]
+(defmethod read-event "EOSE" [json-event]
   (println "eose")
-  (println params))
+  (println json-event))
 
-(defmethod read-event :default [params]
+(defmethod read-event :default [json-event]
   (println "default")
-  (println params))
+  (println json-event))
 
 (comment
   (s/put! @client fetch-request)
