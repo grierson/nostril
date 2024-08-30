@@ -22,20 +22,26 @@
    relays
    relay-configs))
 
-(defn send-event [relays relay-url request]
+(defn submit [relays relay-url event]
   (let [relay (get relays relay-url)]
-    (s/put! (:stream relay) (json/write-value-as-string request))))
+    (s/put! (:stream relay) (json/write-value-as-string event))))
 
 (defn unsubscribe [relays relay-url]
   (let [relay-config (get relays relay-url)
-        result (send-event
+        result (submit
                 relays
                 relay-url
                 (close-request (:subscription-id relay-config)))]
     (when result (dissoc relays relay-url))))
 
+(defn fetch [relays relay-url]
+  (let [relay (get relays relay-url)]
+    (submit relays relay-url (fetch-request (:subscription-id relay)))))
+
 (comment
   (swap! relays subscribe [{:url "wss://relay.damus.io"
                             :subscription-id "nostril-subid-damus"}
                            {:url "wss://purplepag.es"
-                            :subscription-id "nostril-subid-purple"}]))
+                            :subscription-id "nostril-subid-purple"}])
+  (fetch @relays "wss://purplepag.es")
+  (read/process @(s/take! (:stream (get @relays "wss://purplepag.es")))))

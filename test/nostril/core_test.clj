@@ -1,13 +1,16 @@
 (ns nostril.core-test
   (:require
+   [aleph.http :as http]
+   [aleph.netty :as netty]
    [clojure.test :refer [deftest is testing]]
+   [hashp.core]
+   [jsonista.core :as json]
    [malli.generator :as mg]
+   [manifold.deferred :as d]
+   [manifold.stream :as s]
    [nostril.core :as core]
    [nostril.read :as read]
-   [nostril.types :as types]
-   [hashp.core]
-   [manifold.stream :as s]
-   [jsonista.core :as json]))
+   [nostril.types :as types]))
 
 (deftest process-event-test
   (testing "reading EVENT event"
@@ -21,10 +24,10 @@
     (let [relay-url "wss://sample.com"
           subscription-id (mg/generate :string)
           stream (s/stream)
-          state {relay-url {:stream stream
-                            :subscription-id subscription-id}}
+          relays {relay-url {:stream stream
+                             :subscription-id subscription-id}}
           request (core/fetch-request subscription-id)
-          _ (core/send-event state relay-url request)
+          _ (core/submit relays relay-url request)
           stream-event @(s/take! stream)
           map-event (json/read-value stream-event json/keyword-keys-object-mapper)]
       (is (= request map-event)))))
@@ -58,3 +61,44 @@
       (is (= (core/close-request subscription-id) event))
       (is (some? (get updated-relays relay1)))
       (is (nil? (get updated-relays relay2))))))
+
+(defmacro with-server [server & body]
+  `(let [server# ~server]
+     (try
+       ~@body
+       (finally
+         (.close ^java.io.Closeable server#)
+         (netty/wait-for-close server#)))))
+
+(defmacro with-handler [handler & body]
+  `(with-server (http/start-server ~handler {:port 8080 :shutdown-timeout 0})
+     ~@body))
+
+(defn echo-handler
+  ([req] (echo-handler {} req))
+  ([options req]
+   (-> (http/websocket-connection req options)
+       (d/chain' #(s/connect % %))
+       (d/catch'
+        (fn [^Throwable e]
+          (println e)
+          {})))))
+
+(deftest subscription-test
+  (with-handler echo-handler
+    (let [subscription-id (mg/generate :string)
+          relay-url "ws://localhost:8080"
+          new-relays (core/subscribe {} [{:url  relay-url
+                                          :subscription-id subscription-id}])]
+      (is (some? (get new-relays relay-url))))))
+
+(deftest fetch-test
+  (let [subscription-id (mg/generate :string)
+        stream (s/stream)
+        relay-url "ws://sample.com"
+        relays {relay-url {:stream stream
+                           :subscription-id subscription-id}}
+        _ (core/fetch relays relay-url)
+        stream-event @(s/take! stream)
+        event (json/read-value stream-event json/keyword-keys-object-mapper)]
+    (is (= (core/fetch-request subscription-id) event))))
