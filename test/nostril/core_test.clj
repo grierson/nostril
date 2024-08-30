@@ -19,15 +19,15 @@
           actual (read/process json-event)]
       (is (= expected actual)))))
 
-(deftest fetch-request-test
-  (testing "writing to stream"
+(deftest submit-test
+  (testing "submitting fetch request"
     (let [relay-url "wss://sample.com"
           subscription-id (mg/generate :string)
           stream (s/stream)
           relays {relay-url {:stream stream
                              :subscription-id subscription-id}}
           request (core/fetch-request subscription-id)
-          _ (core/submit relays relay-url request)
+          _ (core/submit relay-stream request)
           stream-event @(s/take! stream)
           map-event (json/read-value stream-event json/keyword-keys-object-mapper)]
       (is (= request map-event)))))
@@ -98,7 +98,15 @@
         relay-url "ws://sample.com"
         relays {relay-url {:stream stream
                            :subscription-id subscription-id}}
-        _ (core/fetch relays relay-url)
+        _ (core/fetch (get relays relay-url))
         stream-event @(s/take! stream)
         event (json/read-value stream-event json/keyword-keys-object-mapper)]
     (is (= (core/fetch-request subscription-id) event))))
+
+(deftest consume-test
+  (let [event (mg/generate types/ResponseEvent)
+        json-event (json/write-value-as-string event)
+        stream (s/stream)
+        _ (s/put! stream json-event)
+        events (core/append [] stream)]
+    (is (= [event] events))))
