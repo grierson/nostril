@@ -21,13 +21,10 @@
 
 (deftest submit-test
   (testing "submitting fetch request"
-    (let [relay-url "wss://sample.com"
-          subscription-id (mg/generate :string)
+    (let [subscription-id (mg/generate :string)
           stream (s/stream)
-          relays {relay-url {:stream stream
-                             :subscription-id subscription-id}}
           request (core/fetch-request subscription-id)
-          _ (core/submit relay-stream request)
+          _ (core/submit stream request)
           stream-event @(s/take! stream)
           map-event (json/read-value stream-event json/keyword-keys-object-mapper)]
       (is (= request map-event)))))
@@ -103,10 +100,18 @@
         event (json/read-value stream-event json/keyword-keys-object-mapper)]
     (is (= (core/fetch-request subscription-id) event))))
 
-(deftest consume-test
-  (let [event (mg/generate types/ResponseEvent)
-        json-event (json/write-value-as-string event)
-        stream (s/stream)
-        _ (s/put! stream json-event)
-        events (core/append [] stream)]
-    (is (= [event] events))))
+(deftest append-test
+  (testing "add event to events"
+    (let [[_ _ body :as event] (mg/generate types/ResponseEvent)
+          json-event (json/write-value-as-string event)
+          stream (s/stream)
+          _ (s/put! stream json-event)
+          events (core/append {} stream)]
+      (is (= {(:id body) event} events))))
+  (testing "don't add duplicate events to events"
+    (let [[_ _ body :as event] (mg/generate types/ResponseEvent)
+          json-event (json/write-value-as-string event)
+          stream (s/stream)
+          _ (s/put! stream json-event)
+          events (core/append {(:id body) event} stream)]
+      (is (= {(:id body) event} events)))))

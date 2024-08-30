@@ -7,6 +7,7 @@
    [manifold.stream :as s]))
 
 (def relays (atom {}))
+(def events (atom {}))
 
 (defn fetch-request [subscription-id]
   ["REQ" subscription-id {:kinds [1] :limit 10}])
@@ -36,8 +37,9 @@
   (submit stream (fetch-request subscription-id)))
 
 (defn append [events relay-stream]
-  (let [event @(s/take! relay-stream)]
-    (conj events (read/process event))))
+  (let [event @(s/take! relay-stream)
+        [_ _ body :as event] (read/process event)]
+    (assoc events (:id body) event)))
 
 (comment
   (swap! relays subscribe [{:url "wss://relay.damus.io"
@@ -45,4 +47,5 @@
                            {:url "wss://purplepag.es"
                             :subscription-id "nostril-subid-purple"}])
   (fetch (get @relays "wss://purplepag.es"))
-  (read/process @(s/take! (:stream (get @relays "wss://purplepag.es")))))
+  (fetch (get @relays "wss://relay.damus.io"))
+  (swap! events append (:stream (get @relays "wss://purplepag.es"))))
