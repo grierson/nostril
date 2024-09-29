@@ -13,6 +13,7 @@
                                  {:url "wss://purplepag.es"
                                   :subscription-id "nostril-subid-purple"}])
   (send/fetch (get @relays "wss://purplepag.es"))
-  (send/fetch (get @relays "wss://relay.damus.io"))
+  (send/fetch (get @relays "wss://relay.damus.io") {:kinds [1]})
   (swap! events store/append (:stream (get @relays "wss://purplepag.es")))
+  (swap! events store/append (:stream (get @relays "wss://relay.damus.io")))
   (count @events))
