@@ -4,15 +4,15 @@
    [jsonista.core :as json]
    [manifold.stream :as s]))
 
-(defn submit [relay-stream event]
-  (s/put! relay-stream (json/write-value-as-string event)))
+(defn submit [connection event]
+  (s/put! connection (json/write-value-as-string event)))
 
-(defn pull [relay-stream] @(s/take! relay-stream))
+(defn create-connection [url] @(http/websocket-client url))
 
-(defn create-connection [{:keys [url subscription-id]}]
-  {:stream @(http/websocket-client url)
-   :url url
-   :subscription-id subscription-id})
+(defn close-connection [connection]
+  (http/websocket-close! connection))
 
-(defn close-connection [relay-stream]
-  (http/websocket-close! relay-stream))
+(defn connect [connections url]
+  (if (get connections url)
+    connections
+    (assoc connections url (create-connection url))))
