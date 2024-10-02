@@ -1,21 +1,16 @@
 (ns nostril.store
   (:require
    [nostril.read :as read]
-   [hashp.core]
-   [aleph.http :as http]
-   [manifold.stream :as s]))
+   [nostril.client :as client]))
 
-(defn subscribe [relays relay-configs]
-  (reduce
-   (fn [state {:keys [url subscription-id]}]
-     (if (get state url)
-       state
-       (assoc state url {:stream @(http/websocket-client url)
-                         :subscription-id subscription-id})))
-   relays
-   relay-configs))
+(defn subscribe [relays {:keys [url] :as relay-config}]
+  (if (get relays url)
+    relays
+    (assoc relays url (client/create-connection relay-config))))
 
 (defn append [events relay-stream]
-  (let [event @(s/take! relay-stream)
-        [_ _ body :as event] (read/process event)]
+  (let [event (client/pull relay-stream)
+        [_ _ body :as event] (read/handle event)]
     (assoc events (:id body) event)))
+
+

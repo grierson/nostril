@@ -56,8 +56,8 @@
     (testing "add relay to relays"
       (let [subscription-id (mg/generate :string)
             relay-url "ws://localhost:8080"
-            new-relays (store/subscribe {} [{:url  relay-url
-                                             :subscription-id subscription-id}])]
+            new-relays (store/subscribe {} {:url  relay-url
+                                            :subscription-id subscription-id})]
         (is (some? (get new-relays relay-url)))))
 
     (testing "duplicates not added to relays"
@@ -67,11 +67,6 @@
                                :subscription-id (mg/generate :string)}}
             new-relays (store/subscribe
                         relays
-                        [{:url  relay-url
-                          :subscription-id subscription-id}])]
+                        {:url  relay-url
+                         :subscription-id subscription-id})]
         (is (= relays new-relays))))))
-
-#_(swap! relays store/subscribe [{:url "wss://relay.damus.io"
-                                  :subscription-id "nostril-subid-damus"}
-                                 {:url "wss://purplepag.es"
-                                  :subscription-id "nostril-subid-purple"}])
