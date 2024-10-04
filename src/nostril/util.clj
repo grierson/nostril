@@ -1,7 +1,7 @@
 (ns nostril.util)
 
-(defn get-now-ms []
+(defn now-ms []
   (System/currentTimeMillis))
 
-(defn get-now []
-  (quot (get-now-ms) 1000))
+(defn now []
+  (quot (now-ms) 1000))

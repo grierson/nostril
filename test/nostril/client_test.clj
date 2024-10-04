@@ -34,4 +34,4 @@
     (let [relay-url "ws://localhost:8080"
           new-relays (client/connect {} relay-url)
           connection (get new-relays relay-url)]
-      (is (true? @(client/close-connection connection))))))
+      (is (true? @(client/close connection))))))
