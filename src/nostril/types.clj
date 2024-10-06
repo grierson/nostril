@@ -37,5 +37,10 @@
    [:subscription-id :string]
    [:event Event]])
 
+(def EoseEvent
+  [:catn
+   [:type [:= "EOSE"]]
+   [:subscription-id :string]])
+
 (comment
   (mg/generate ResponseEvent))

@@ -1,12 +1,15 @@
 (ns nostril.core
   (:require
    [hashp.core]
+   [manifold.stream :as s]
    [nostril.client :as client]
-   [nostril.util :as util]
-   [manifold.stream :as s]))
+   [nostril.read :as read]
+   [buddy.core.bytes :as]))
+
+(def snowden "npub1sn0wdenkukak0d9dfczzeacvhkrgz92ak56egt7vdgzn8pv2wfqqhrjdv9")
 
 (def connections (atom {}))
-(def events (atom []))
+(def events (atom {}))
 
 (defn request-event
   ([]
@@ -21,13 +24,14 @@
   (swap! connections client/connect "wss://relay.damus.io")
   (client/submit
    (get @connections "wss://relay.damus.io")
-   (request-event {:limit 10}))
-  (client/submit
-   (get @connections "wss://relay.damus.io")
-   (request-event {:limit 10
-                   :until (util/now)
-                   :since (- (util/now) 1000)}))
+   (request-event {:kinds [1]
+                   :limit 10
+                   :authors [""]}))
   (s/consume
-   (fn [event] (prn event))
+   (fn [raw-event]
+     (let [[type _subscription-id :as event] (read/handle raw-event)]
+       (if (= type "EVENT")
+         (swap! events assoc (:subscription-id event) event)
+         false)))
    (get @connections "wss://relay.damus.io"))
   (count @events))
