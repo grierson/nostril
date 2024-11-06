@@ -5,7 +5,8 @@
    [clojure.test :refer [deftest is]]
    [manifold.deferred :as d]
    [manifold.stream :as s]
-   [nostril.client :as client]))
+   [nostril.client :as client]
+   [nostril.core :refer [request-event]]))
 
 (defmacro with-server [server & body]
   `(let [server# ~server]
@@ -28,6 +29,14 @@
         (fn [^Throwable e]
           (println e)
           {})))))
+
+(deftest submit-connection-test
+  (with-handler echo-handler
+    (let [relay-url "ws://localhost:8080"
+          new-relays (client/connect {} relay-url)
+          connection (get new-relays relay-url)
+          event (request-event {:kinds [1] :limit 10})]
+      (is (true? @(client/submit connection event))))))
 
 (deftest close-connection-test
   (with-handler echo-handler

@@ -7,8 +7,7 @@
    [nostril.types :as types]))
 
 (defn handle [event-json]
-  (let [_ (prn event-json)
-        [type :as event] (json/read-value event-json json/keyword-keys-object-mapper)]
+  (let [[type :as event] (json/read-value event-json json/keyword-keys-object-mapper)]
     (case type
       "EVENT" (m/decode types/ResponseEvent event mt/string-transformer)
       "NOTICE" (pprint/pprint event)
