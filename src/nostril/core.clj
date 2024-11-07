@@ -6,11 +6,7 @@
    [nostril.read :as read]
    [manifold.deferred :as d]
    [io.github.humbleui.ui :as ui]
-   [nostril.state :as state])
-  (:import
-   [io.github.humbleui.skija Color ColorSpace]
-   [io.github.humbleui.jwm Window]
-   [io.github.humbleui.jwm.skija LayerMetalSkija]))
+   [io.github.humbleui.signal :as signal]))
 
 ;; Should be 64 hex for authors filter
 (def jack "npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m")
@@ -32,36 +28,45 @@
       "EVENT" (swap! events conj event)
       "EOSE" (client/submit stream (close-event subscription-id)))))
 
-(defn draw-event [[_type _id body]]
-  (let [content (get body :content)]
-    [ui/paragraph content]))
+(defonce *content (signal/signal "Relays"))
 
-(def app
-  "Main app definition."
-  (fn []
-    [ui/default-theme
-     {}
-     [ui/center
-      [ui/grid {:cols 1
-                :gap 8}
-       (map draw-event @events)
-       [ui/label "End of Events"]]]]))
+(ui/defcomp RelayContent []
+  [ui/label "Relays here"])
 
-;; reset current app state on eval of this ns
-(reset! state/*app app)
+(ui/defcomp AuthorsContent []
+  [ui/label "Authors here"])
 
-(defn -main
-  "Run once on app start, starting the humble app."
-  [& args]
+(ui/defcomp EventsContent []
+  [ui/label "Events here"])
+
+(ui/defcomp app []
+  [ui/column {:width 150}
+   [ui/row
+    (list
+     [ui/button
+      {:on-click (fn [_]
+                   (reset! *content "Relays"))}
+      [ui/label "Relays"]]
+     [ui/button
+      {:on-click (fn [_]
+                   (reset! *content "Authors"))}
+      [ui/label "Authors"]]
+     [ui/button
+      {:on-click (fn [_]
+                   (reset! *content "Events"))}
+      [ui/label "Events"]])]
+   [ui/padding
+    {:padding 20}
+    [(condp = @*content
+       "Relays" RelayContent
+       "Authors" AuthorsContent
+       "Events" EventsContent)]]])
+
+(defn -main [& args]
   (ui/start-app!
-   (reset! state/*window
-           (ui/window
-            {:title    "Editor"
-             :bg-color 0xFFFFFFFF}
-            state/*app)))
-  (state/redraw!))
-
-(-main)
+   (ui/window
+    {:title    "Nostril"}
+    #'app)))
 
 (comment
   (swap! connections client/connect "wss://relay.damus.io")
@@ -79,3 +84,5 @@
   (count @events))
 
 ;; run (reset! state/*app app) to reload ui
+;;
+;; (reload)
