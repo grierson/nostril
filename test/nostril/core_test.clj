@@ -3,7 +3,6 @@
    [clojure.test :refer [deftest is testing]]
    [jsonista.core :as json]
    [malli.generator :as mg]
-   [manifold.stream :as s]
    [nostril.core :as core]
    [nostril.types :as types]))
 
