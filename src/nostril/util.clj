@@ -1,10 +1,14 @@
-(ns nostril.util)
+(ns nostril.util
+  (:require
+   [tick.core :as t]))
 
-(defn now-ms []
-  (System/currentTimeMillis))
+(defn since [instant seconds] (t/<< instant (t/new-duration seconds :seconds)))
+(defn now [] (.getEpochSecond (t/instant)))
 
-(defn now []
-  (quot (now-ms) 1000))
+(defn window [seconds]
+  (let [now (t/instant)]
+    {:until (.getEpochSecond now)
+     :since (.getEpochSecond (t/<< now (t/new-duration seconds :seconds)))}))
 
 (defn num->bytes
   "Returns the byte-array representation of n.

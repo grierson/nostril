@@ -3,17 +3,15 @@
 All the questions I ask myself while I work on this project?
 (Expect lots of dumb questions)
 
-- How do I fetch tag events? (`{:tags [["e" "<event-id>"]]}`)
+## 16/11
 
-  - How do I fetch specific event?
-    - `["REQ" "sub-id" {#e: [<event-id-1>, <event-id-2>]}]`
-  - How do I distinguish the results from that REQ and the initial REQ?
-    - [Step-back] When I make the first REQ how many events to I get?
-    - [Step-back] When I `take!`
+Should I connect many relay streams into one stream?
 
-- `{:tags [["p" "<pereson-id>"]]}`
-  - How is a person "p" event different?
+Why? Only need to focus on one stream
 
-## 6/10
+Questions:
 
--
+- How would I send "fetch latest" events to each stream?
+  - I could REQ to each relay ["REQ" "sub-id"]
+    and take latest but might would need to throttle incoming if relay is busy.
+    So would need to use "since" and "until"
