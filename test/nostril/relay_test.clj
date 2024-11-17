@@ -4,12 +4,10 @@
    [aleph.http :as http]
    [aleph.netty :as netty]
    [clojure.test :refer [deftest is testing]]
-   [malli.generator :as mg]
    [manifold.deferred :as d]
    [manifold.stream :as s]
    [nostril.core :refer [request-event]]
    [nostril.relay :as relay]
-   [nostril.types :as types]
    [jsonista.core :as json]))
 
 (defmacro with-server [server & body]

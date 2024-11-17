@@ -1,10 +1,18 @@
-{:paths ["bb"]
+{:paths ["scripts"]
 
  :deps
  {}
 
  :tasks
- {clj:repl
+ {go
+  {:doc "pre-flight checks before committing"
+   :enter (println "Running pre-flight checks...")
+   :task (run '-go {:parallel true})}
+
+  -go
+  {:depends [test lint]}
+
+  clj:repl
   {:doc "Start repl"
    :task (shell "clojure -M:repl")}
 
@@ -14,8 +22,15 @@
 
   test
   {:doc "Run tests"
+   :enter (println "Running tests...")
    :task (shell "./bin/kaocha")}
 
   test:watch
   {:doc "Run tests watch mode"
-   :task (shell "./bin/kaocha --watch")}}}
+   :task (shell "./bin/kaocha --watch")}
+
+  lint
+  {:doc "Lint project"
+   :enter (println "Running linter...")
+   :task
+   (shell {:continue true} "clj-kondo --lint src --lint test --parallel")}}}
