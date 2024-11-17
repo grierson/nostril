@@ -29,12 +29,15 @@
   (let [handler (event-handler/make-atom-event-handler)
         relay-url "wss://relay.damus.io"
         relay-stream @(relay/connect relay-url)
+        main-stream (s/stream* {:permanent? true
+                                :description "main stream for events"})
+        _ (s/connect relay-stream main-stream)
         event (request-event {:filters {:kinds [1]
                                         :since (- (util/now) 9999)
                                         :until (util/now)
                                         :limit 10}})
         _ @(relay/submit relay-stream event)]
-    (s/consume (partial callback handler) relay-stream)))
+    (s/consume (partial callback handler) main-stream)))
 
 (comment
   (def damus-url "wss://relay.damus.io")
@@ -50,24 +53,3 @@
   (def consumer (s/consume (partial callback event-handler) damus-stream))
   (count (event-handler/fetch-all event-handler))
   (map :content (vals (event-handler/fetch-all event-handler))))
-
-(comment
-  "Playing with how to manage many streams from relays into one"
-  (let [main (s/stream)
-        relay-1 (s/stream)
-        relay-2 (s/stream)]
-    (s/connect relay-1 main {:downstream false
-                             :upstream true
-                             :description "relay 1 ->main"})
-    (s/connect relay-2 main {:downstream false
-                             :upstream true
-                             :description "relay 2 ->main"})
-    (s/put! relay-1 "event from R1")
-    (s/put! relay-2 "my event on R2")
-    (s/take! main)
-    (s/close! relay-1)
-    [(s/description relay-1)
-     (s/description relay-2)
-     (s/description main)
-     (s/downstream relay-1)
-     (s/downstream relay-2)]))

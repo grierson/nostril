@@ -1,12 +1,16 @@
 (ns nostril.relay-test
   (:require
+   [hashp.core]
    [aleph.http :as http]
    [aleph.netty :as netty]
-   [clojure.test :refer [deftest is]]
+   [clojure.test :refer [deftest is testing]]
+   [malli.generator :as mg]
    [manifold.deferred :as d]
    [manifold.stream :as s]
+   [nostril.core :refer [request-event]]
    [nostril.relay :as relay]
-   [nostril.core :refer [request-event]]))
+   [nostril.types :as types]
+   [jsonista.core :as json]))
 
 (defmacro with-server [server & body]
   `(let [server# ~server]
@@ -34,7 +38,7 @@
   (with-handler echo-handler
     (let [relay-url "ws://localhost:8080"
           relay-stream @(relay/connect relay-url)
-          event (request-event {:kinds [1] :limit 10})]
+          event (request-event {})]
       (is (true? @(relay/submit relay-stream event))))))
 
 (deftest close-connection-test
@@ -42,3 +46,24 @@
     (let [relay-url "ws://localhost:8080"
           relay-stream @(relay/connect relay-url)]
       (is (true? @(relay/close relay-stream))))))
+
+(deftest add-relay-test
+  (testing "adds relay to relays"
+    (with-handler echo-handler
+      (let [main (s/stream)
+            relays (atom {})
+            relay-url "ws://localhost:8080"
+            new-relays @(relay/add-relay main relays relay-url)]
+        (is (true? (contains? new-relays relay-url))))))
+
+  (testing "connects relay to main"
+    (with-handler echo-handler
+      (let [main (s/stream)
+            relays (atom {})
+            relay-url "ws://localhost:8080"
+            new-relays @(relay/add-relay main relays relay-url)
+            relay-stream  (get-in new-relays [relay-url :stream])
+            event  (request-event {})
+            _  @(relay/submit relay-stream event)
+            actual  @(s/take! main)]
+        (is (= (json/write-value-as-string event) actual))))))
