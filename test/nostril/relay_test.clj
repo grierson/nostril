@@ -6,7 +6,6 @@
    [clojure.test :refer [deftest is testing]]
    [manifold.deferred :as d]
    [manifold.stream :as s]
-   [nostril.core :refer [request-event]]
    [nostril.relay :as relay]
    [jsonista.core :as json]))
 
@@ -36,7 +35,7 @@
   (with-handler echo-handler
     (let [relay-url "ws://localhost:8080"
           relay-stream @(relay/connect relay-url)
-          event (request-event {})]
+          event (relay/request-event {})]
       (is (true? @(relay/submit relay-stream event))))))
 
 (deftest close-connection-test
@@ -51,17 +50,27 @@
       (let [main (s/stream)
             relays (atom {})
             relay-url "ws://localhost:8080"
-            new-relays @(relay/add-relay main relays relay-url)]
-        (is (true? (contains? new-relays relay-url))))))
+            _ @(relay/add-relay main relays relay-url)]
+        (is (true? (contains? @relays relay-url))))))
 
   (testing "connects relay to main"
     (with-handler echo-handler
       (let [main (s/stream)
             relays (atom {})
             relay-url "ws://localhost:8080"
-            new-relays @(relay/add-relay main relays relay-url)
-            relay-stream  (get-in new-relays [relay-url :stream])
-            event  (request-event {})
+            _ @(relay/add-relay main relays relay-url)
+            relay-stream  (get-in @relays [relay-url :stream])
+            event  (relay/request-event {})
             _  @(relay/submit relay-stream event)
             actual  @(s/take! main)]
-        (is (= (json/write-value-as-string event) actual))))))
+        (is (= (json/write-value-as-string event) actual)))))
+
+  (testing "close relay stream removes relay from relays"
+    (with-handler echo-handler
+      (let [main (s/stream)
+            relays (atom {})
+            relay-url "ws://localhost:8080"
+            _ @(relay/add-relay main relays relay-url)
+            relay-stream  (get-in @relays [relay-url :stream])
+            _ (s/close! relay-stream)]
+        (is (true? (empty? @relays)))))))
