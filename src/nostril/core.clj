@@ -28,7 +28,7 @@
         _ @(relay/add-relay stream relays relay-url)
         relay-stream (get @relays relay-url)
         _ @(relay/fetch-latest (t/clock) relay-stream)]
-    true))
+    (event-handler/fetch-all handler)))
 
 (comment
   (def system (setup))
