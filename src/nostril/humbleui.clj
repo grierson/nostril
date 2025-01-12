@@ -1,8 +1,12 @@
 (ns nostril.humbleui
   (:require
    [hashp.core]
+   [io.github.humbleui.signal :as signal]
    [io.github.humbleui.ui :as ui]
-   [io.github.humbleui.signal :as signal]))
+   [nostril.dummy :as dummy]
+   [tick.core :as t]))
+
+(signal/defsignal *events dummy/events)
 
 (defonce *content (signal/signal "Events"))
 
@@ -52,14 +56,46 @@
          [ui/label npubs]]
         [ui/button {} "Remove"]]])]])
 
+;; [ui/align {:y :center}
+;;      [ui/vscroll
+;;       [ui/align {:x :center}
+;;        [ui/padding {:padding 20}
+;;         [ui/grid {:cols (count header)
+;;                   :rows (inc (count currencies))}
+;;          (concat
+;;            (for [[th i] (util/zip header (range))]
+;;              [ui/clickable
+;;               {:on-click (on-click i)}
+;;               [ui/padding {:padding 10}
+;;                [ui/reserve-width
+;;                 {:probes [[ui/label (str th " ⏶")]
+;;                           [ui/label (str th " ⏷")]]}
+;;                 [ui/align {:x :left}
+;;                  [ui/label {:font-weight :bold}
+;;                   (str th
+;;                     (case (when (= i sort-col)
+;;                             sort-dir)
+;;                       :asc  " ⏶"
+;;                       :desc " ⏷"
+;;                       nil   ""))]]]]])
+;;            (for [row currencies
+;;                  s   row]
+;;              [ui/padding {:padding 10}
+;;               [ui/label s]]))]]]]]
+
 (ui/defcomp EventsContent []
   [ui/grid {:cols 1}
-   (for [events ["wss:this" "wss:that" "wss:foo"]]
-     [ui/padding
-      {:padding 10}
-      [ui/row
-       [ui/align {:y :center}
-        [ui/label events]]]])])
+   (for [event @*events]
+     (let [[_id body] event]
+       [ui/rect {:paint [{:fill   "FFDB2C80"}
+                         {:stroke "808080"}]}
+        [ui/padding {:padding 10}
+         [ui/column {:gap 10}
+          [ui/label (:content body)]
+          [ui/label {:paint {:fill 0xFFCC33FE}} (t/>> (t/epoch) (t/new-duration (:created_at body) :seconds))]
+          [ui/label (:pubkey body)]]]]))])
+
+(t/>> (t/epoch) (t/new-duration 1731881784 :seconds))
 
 (ui/defcomp app []
   [ui/column {:width 150}

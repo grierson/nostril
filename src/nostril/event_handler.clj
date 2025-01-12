@@ -2,21 +2,18 @@
 
 (defprotocol EventHandler
   (fetch-all [_this])
-  (fetch-by-id [_this id])
-  (save [_this event]))
+  (raise [_this event]))
 
 (defrecord AtomEventHandler [events]
   EventHandler
   (fetch-all [_this] @events)
-  (fetch-by-id [_this id] (get @events id))
-  (save [_this [_ _ body]]
-    (swap! events assoc (:id body) body)))
+  (raise [_this event]
+    (swap! events conj event)))
 
 (defn make-atom-event-handler []
-  (->AtomEventHandler (atom {})))
+  (->AtomEventHandler (atom [])))
 
 (comment
-  (def foo (make-atom-event-handler))
-  (save foo [1 2 {:id 123 :name "foo"}])
-  (fetch-all foo)
-  (fetch-by-id foo 123))
+  (def event-handler (make-atom-event-handler))
+  (raise event-handler [1 2 {:id 123 :name "foo"}])
+  (fetch-all event-handler))

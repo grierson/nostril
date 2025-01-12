@@ -7,7 +7,11 @@
    [manifold.deferred :as d]
    [manifold.stream :as s]
    [nostril.relay :as relay]
-   [jsonista.core :as json]))
+   [malli.generator :as mg]
+   [nostril.types :as types]
+   [jsonista.core :as json]
+   [nostril.read :as read]
+   [nostril.event-handler :as event-handler]))
 
 (defmacro with-server [server & body]
   `(let [server# ~server]
@@ -47,30 +51,27 @@
 (deftest add-relay-test
   (testing "adds relay to relays"
     (with-handler echo-handler
-      (let [main (s/stream)
-            relays (atom {})
+      (let [relays (atom {})
             relay-url "ws://localhost:8080"
-            _ @(relay/add-relay main relays relay-url)]
+            _ @(relay/add-relay relays relay-url)]
         (is (true? (contains? @relays relay-url))))))
 
-  (testing "connects relay to main"
+  (testing "closing relay stream removes relay from relays"
     (with-handler echo-handler
-      (let [main (s/stream)
-            relays (atom {})
+      (let [relays (atom {})
             relay-url "ws://localhost:8080"
-            _ @(relay/add-relay main relays relay-url)
-            relay-stream  (get-in @relays [relay-url :stream])
-            event  (relay/request-event {})
-            _  @(relay/submit relay-stream event)
-            actual  @(s/take! main)]
-        (is (= (json/write-value-as-string event) actual)))))
-
-  (testing "close relay stream removes relay from relays"
-    (with-handler echo-handler
-      (let [main (s/stream)
-            relays (atom {})
-            relay-url "ws://localhost:8080"
-            _ @(relay/add-relay main relays relay-url)
-            relay-stream  (get-in @relays [relay-url :stream])
+            _ @(relay/add-relay relays relay-url)
+            relay-stream (get-in @relays [relay-url :stream])
             _ (s/close! relay-stream)]
         (is (true? (empty? @relays)))))))
+
+(deftest callback-test
+  (testing "Raise event when Nostr event received"
+    (let [[_event-type subscription-id :as eose-event] (mg/generate types/EoseEvent)
+          event-handler (event-handler/make-atom-event-handler)
+          _ (relay/callback event-handler (json/write-value-as-string eose-event))
+          events (event-handler/fetch-all event-handler)
+          first-event (first events)]
+      (is (= first-event
+             {:type :event-received
+              :payload ["EOSE" subscription-id]})))))

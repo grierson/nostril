@@ -6,7 +6,7 @@
    [nostril.read :as read]
    [nostril.types :as types]))
 
-(deftest process-test
+(deftest read-test
   (testing "read EVENT event type"
     (let [expected (mg/generate types/ResponseEvent)
           response-event-json (json/write-value-as-string expected)

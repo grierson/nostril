@@ -5,10 +5,11 @@
 (defn since [instant seconds] (t/<< instant (t/new-duration seconds :seconds)))
 (defn now [] (.getEpochSecond (t/instant)))
 
-(defn window [seconds]
-  (let [now (t/instant)]
-    {:until (.getEpochSecond now)
-     :since (.getEpochSecond (t/<< now (t/new-duration seconds :seconds)))}))
+(defn window
+  ([seconds] (window (t/instant) seconds))
+  ([now seconds]
+   {:until (.getEpochSecond now)
+    :since (.getEpochSecond (t/<< now (t/new-duration seconds :seconds)))}))
 
 (defn num->bytes
   "Returns the byte-array representation of n.

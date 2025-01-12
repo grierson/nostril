@@ -3,7 +3,10 @@
    [aleph.http :as http]
    [jsonista.core :as json]
    [manifold.stream :as s]
-   [tick.core :as t]))
+   [nostril.read :as read]
+   [nostril.event-handler :as event-handler]
+   [tick.core :as t]
+   [clojure.core :as c]))
 
 (defn submit [stream event] (s/try-put! stream (json/write-value-as-string event) 1000 :timeout))
 (defn connect [url] (http/websocket-client url))
@@ -17,25 +20,48 @@
   ([] (request-event (random-uuid) {}))
   ([filters] (request-event (random-uuid) filters))
   ([subscription-id filters]
-   ["REQ" subscription-id filters]))
+   ["REQ" (str subscription-id) filters]))
 
 (defn close-event [subscription-id]
   ["CLOSE" subscription-id])
 
-(defn add-relay [main relays url]
+(defn callback
+  [events raw-event]
+  (let [[event-type :as event] (read/handle raw-event)]
+    (when (contains? #{"EOSE" "NOTICE" "EVENT" "CLOSED" "OK"} event-type)
+      (event-handler/raise events {:type :event-received
+                                   :payload event}))))
+
+(defn add-relay
+  "Create relay connection and attach to main stream"
+  [relays url]
   (let [stream @(connect url)
-        relay {:stream stream}]
+        relay {:url url
+               :stream stream}]
     (swap! relays assoc url relay)
-    (s/on-closed main (fn [] (swap! relays dissoc url)))
-    (s/connect stream main {:upstream true
-                            :downstream false
-                            :description url})
+    (s/on-closed stream (fn [] (swap! relays dissoc url)))
     relays))
 
-(defn fetch-latest [clock {:keys [stream]}]
-  (let [now (.getEpochSecond (t/instant clock))
-        event (request-event {:kinds [1]
-                              :since (- now 300)
-                              :until now
-                              :limit 10})]
-    (submit stream event)))
+(comment
+  (let [now (.getEpochSecond (t/instant (t/clock)))
+        [event-type sub-id body :as event] (request-event {:kinds [1]
+                                                           :since (- now 300)
+                                                           :until now
+                                                           :limit 10})]
+    [event-type sub-id body event]))
+
+(defn fetch-latest
+  ([stream] (fetch-latest stream (t/clock)))
+  ([stream clock] (fetch-latest stream clock 10))
+  ([stream clock limit]
+   (let [now (.getEpochSecond (t/instant clock))
+         event (request-event {:kinds [1]
+                               :since (- now 10000)
+                               :until now
+                               :limit limit})]
+     (submit stream event)
+     (s/consume (partial callback stream) stream))))
+
+(comment
+  (def relay-stream (connect "wss://relay.damus.io"))
+  (def consumer (fetch-latest @relay-stream (t/clock) 2)))

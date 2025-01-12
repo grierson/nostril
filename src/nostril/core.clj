@@ -1,43 +1,33 @@
 (ns nostril.core
   (:require
    [hashp.core]
-   [manifold.stream :as s]
    [nostril.event-handler :as event-handler]
-   [nostril.read :as read]
    [nostril.relay :as relay]
    [tick.core :as t]))
 
-(defn callback [event-handler raw-event]
-  (let [[type _subscription-id :as event] (read/handle raw-event)]
-    (when (= type "EVENT")
-      (event-handler/save event-handler event))))
-
-(defn setup []
+(defn setup
+  "Setup event handler, relay store"
+  []
   (let [handler (event-handler/make-atom-event-handler)
-        relays (atom {})
-        stream (s/stream* {:permanent? true
-                           :description "main stream for events"})
-        _ (s/consume (partial callback handler) stream)]
+        relays (atom {})]
     {:handler handler
-     :relays relays
-     :stream stream}))
+     :relays relays}))
 
 (defn -main [& args]
-  (let [{:keys [stream relays handler]} (setup)
+  (let [{:keys [relays handler]} (setup)
         relay-url "wss://relay.damus.io"
-        _ @(relay/add-relay stream relays relay-url)
+        _ @(relay/add-relay relays relay-url)
         relay-stream (get @relays relay-url)
-        _ @(relay/fetch-latest (t/clock) relay-stream)]
+        _ @(relay/fetch-latest relay-stream)]
     (event-handler/fetch-all handler)))
 
 (comment
   (def system (setup))
   (def handler (:handler system))
   (def relays (:relays system))
-  (def stream (:stream system))
   (def relay-url "wss://relay.damus.io")
-  @(relay/add-relay stream relays relay-url)
+  @(relay/add-relay relays relay-url)
   (def relay-stream (get @relays relay-url))
-  (def submission @(relay/fetch-latest (t/clock) relay-stream))
-  (event-handler/fetch-all handler)
+  (:stream relay-stream)
+  (def submission (relay/fetch-latest (t/clock) (:stream relay-stream)))
   (count (event-handler/fetch-all handler)))

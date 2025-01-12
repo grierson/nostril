@@ -2,8 +2,6 @@
 
 Nostr client in Clojure for learning purposes (Nostr, Manifold, HumbleUI)
 
-
-
 ## TODO
 
-* Fetching reccent 
+* Fetching recent
