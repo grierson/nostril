@@ -26,10 +26,9 @@
 (def jack-hex64 "82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2")
 
 (defn request-event
-  ([] (request-event (random-uuid) {}))
   ([filters] (request-event (random-uuid) filters))
   ([subscription-id filters]
-   ["REQ" (str subscription-id) filters]))
+   ["REQ" (str subscription-id) (merge filters {:kinds [1]})]))
 
 (defn close-event [subscription-id]
   ["CLOSE" subscription-id])
@@ -71,25 +70,23 @@
         :source (:url relay)})
 
       "EOSE"
-      (submit (:stream relay) (close-event subscription-id)))))
+      (submit (:stream relay) (close-event subscription-id))
+
+      (println event))))
 
 (defn fetch-latest
-  [event-store clock limit stream]
-  (let [now (.getEpochSecond (t/instant clock))
-        event (request-event {:kinds [1]
-                              :since (- now 10000)
-                              :until now
-                              :limit limit})]
-    (submit (:stream stream) event)
-    (s/consume (partial callback event-store clock (:url stream)) (:stream stream))))
+  [event-store clock limit relay]
+  (let [event (request-event {:limit limit})]
+    (submit (:stream relay) event)
+    (s/consume (partial callback event-store clock relay) (:stream relay))))
 
 (comment
-  (def relay-stream {:url "wss://relay.damus.io"
-                     :stream @(connect "wss://relay.damus.io")})
+  (def relay-stream (make-relay "wss://relay.damus.io"))
   (def eh (event-handler/make-atom-event-handler))
   (def consumer (fetch-latest
                  eh
                  (t/clock)
                  10
                  relay-stream))
-  (event-handler/fetch-all eh))
+  (event-handler/fetch-all eh)
+  (count (event-handler/fetch-all eh)))

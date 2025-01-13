@@ -68,7 +68,7 @@
 (deftest callback-test
   (testing "Raise event when Nostr event received"
     (let [[_event-type subscription-id :as nostr-event] (mg/generate types/ResponseEvent)
-          relay-url "ws://localhost:8080"
+          relay-url "ws://nostr.relay"
           relay {:url relay-url
                  :stream (s/stream)}
           event-handler (event-handler/make-atom-event-handler)
@@ -89,3 +89,17 @@
           response-event-json (json/write-value-as-string expected)
           actual (relay/read-event response-event-json)]
       (is (= actual expected)))))
+
+(deftest request-event-test
+  (testing "Default request event"
+    (let [subscription-id (mg/generate :string)]
+      (is (= ["REQ" subscription-id {:kinds [1]}]
+             (relay/request-event subscription-id {})))))
+  (testing "Cant override kinds"
+    (let [subscription-id (mg/generate :string)]
+      (is (= ["REQ" subscription-id {:kinds [1]}]
+             (relay/request-event subscription-id {:kinds [2]})))))
+  (testing "Include limit request event"
+    (let [subscription-id (mg/generate :string)]
+      (is (= ["REQ" subscription-id {:kinds [1] :limit 10}]
+             (relay/request-event subscription-id {:limit 10}))))))
