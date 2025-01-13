@@ -1,5 +1,7 @@
 (ns nostril.types
-  (:require [malli.generator :as mg]))
+  (:require
+   [clojure.string :as string]
+   [malli.generator :as mg]))
 
 (def hex-32 [:string {:min 64 :max 64}])
 (def hex-64 [:string {:min 128 :max 128}])
@@ -34,13 +36,13 @@
 (def ResponseEvent
   [:catn
    [:type [:= "EVENT"]]
-   [:subscription-id :string]
+   [:subscription-id [:and string? [:fn #(not (string/blank? %))]]]
    [:event Event]])
 
 (def EoseEvent
   [:catn
    [:type [:= "EOSE"]]
-   [:subscription-id :string]])
+   [:subscription-id [:and string? [:fn #(not (string/blank? %))]]]])
 
 (comment
   (mg/generate ResponseEvent))

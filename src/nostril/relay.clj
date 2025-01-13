@@ -1,12 +1,21 @@
+(comment
+  "Everything related to interacting with Nostr relay.
+  
+  Store parsing, ")
+
 (ns nostril.relay
   (:require
    [aleph.http :as http]
+   [clojure.pprint :as pprint]
    [jsonista.core :as json]
+   [malli.core :as m]
+   [malli.transform :as mt]
    [manifold.stream :as s]
-   [nostril.read :as read]
    [nostril.event-handler :as event-handler]
-   [tick.core :as t]
-   [clojure.core :as c]))
+   [nostril.types :as types]
+   [tick.core :as t]))
+
+(defn now [clock] (t/with-clock clock (str (t/now))))
 
 (defn submit [stream event] (s/try-put! stream (json/write-value-as-string event) 1000 :timeout))
 (defn connect [url] (http/websocket-client url))
@@ -25,43 +34,62 @@
 (defn close-event [subscription-id]
   ["CLOSE" subscription-id])
 
-(defn callback
-  [events raw-event]
-  (let [[event-type :as event] (read/handle raw-event)]
-    (when (contains? #{"EOSE" "NOTICE" "EVENT" "CLOSED" "OK"} event-type)
-      (event-handler/raise events {:type :event-received
-                                   :payload event}))))
+(defn make-relay
+  [url]
+  (let [stream @(connect url)]
+    {:stream stream
+     :url url}))
 
 (defn add-relay
   "Create relay connection and attach to main stream"
   [relays url]
-  (let [stream @(connect url)
-        relay {:url url
-               :stream stream}]
+  (let [relay (make-relay url)]
     (swap! relays assoc url relay)
-    (s/on-closed stream (fn [] (swap! relays dissoc url)))
+    (s/on-closed (:stream relay) (fn [] (swap! relays dissoc url)))
     relays))
 
-(comment
-  (let [now (.getEpochSecond (t/instant (t/clock)))
-        [event-type sub-id body :as event] (request-event {:kinds [1]
-                                                           :since (- now 300)
-                                                           :until now
-                                                           :limit 10})]
-    [event-type sub-id body event]))
+(defn read-event [event-json]
+  (let [[event-type :as event] (json/read-value event-json json/keyword-keys-object-mapper)]
+    (case event-type
+      "EVENT" (m/decode types/ResponseEvent event mt/string-transformer)
+      "NOTICE" (pprint/pprint event)
+      "EOSE" (m/decode types/EoseEvent event mt/string-transformer)
+      event)))
+
+(defn callback
+  [event-store clock relay raw-event]
+  (let [[event-type subscription-id :as event] (read-event raw-event)]
+    (case event-type
+      "EVENT"
+      (event-handler/raise
+       event-store
+       {:id (random-uuid)
+        :type :event-received
+        :time (now clock)
+        :data-content-type event-type
+        :data event
+        :source (:url relay)})
+
+      "EOSE"
+      (submit (:stream relay) (close-event subscription-id)))))
 
 (defn fetch-latest
-  ([stream] (fetch-latest stream (t/clock)))
-  ([stream clock] (fetch-latest stream clock 10))
-  ([stream clock limit]
-   (let [now (.getEpochSecond (t/instant clock))
-         event (request-event {:kinds [1]
-                               :since (- now 10000)
-                               :until now
-                               :limit limit})]
-     (submit stream event)
-     (s/consume (partial callback stream) stream))))
+  [event-store clock limit stream]
+  (let [now (.getEpochSecond (t/instant clock))
+        event (request-event {:kinds [1]
+                              :since (- now 10000)
+                              :until now
+                              :limit limit})]
+    (submit (:stream stream) event)
+    (s/consume (partial callback event-store clock (:url stream)) (:stream stream))))
 
 (comment
-  (def relay-stream (connect "wss://relay.damus.io"))
-  (def consumer (fetch-latest @relay-stream (t/clock) 2)))
+  (def relay-stream {:url "wss://relay.damus.io"
+                     :stream @(connect "wss://relay.damus.io")})
+  (def eh (event-handler/make-atom-event-handler))
+  (def consumer (fetch-latest
+                 eh
+                 (t/clock)
+                 10
+                 relay-stream))
+  (event-handler/fetch-all eh))

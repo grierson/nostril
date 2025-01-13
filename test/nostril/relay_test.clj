@@ -10,7 +10,7 @@
    [malli.generator :as mg]
    [nostril.types :as types]
    [jsonista.core :as json]
-   [nostril.read :as read]
+   [tick.core :as t]
    [nostril.event-handler :as event-handler]))
 
 (defmacro with-server [server & body]
@@ -67,11 +67,25 @@
 
 (deftest callback-test
   (testing "Raise event when Nostr event received"
-    (let [[_event-type subscription-id :as eose-event] (mg/generate types/EoseEvent)
+    (let [[_event-type subscription-id :as nostr-event] (mg/generate types/ResponseEvent)
+          relay-url "ws://localhost:8080"
+          relay {:url relay-url
+                 :stream (s/stream)}
           event-handler (event-handler/make-atom-event-handler)
-          _ (relay/callback event-handler (json/write-value-as-string eose-event))
+          fixed-clock (t/clock (t/now))
+          _ (relay/callback event-handler fixed-clock relay (json/write-value-as-string nostr-event))
           events (event-handler/fetch-all event-handler)
-          first-event (first events)]
-      (is (= first-event
-             {:type :event-received
-              :payload ["EOSE" subscription-id]})))))
+          first-event (first events)
+          [_event-type event-subscription-id] (:data first-event)]
+      (is (= (:type first-event) :event-received))
+      (is (= (:data-content-type first-event) "EVENT"))
+      (is (= (:source first-event) relay-url))
+      (is (= (:time first-event) (str (t/instant fixed-clock))))
+      (is (= subscription-id event-subscription-id)))))
+
+(deftest read-test
+  (testing "read EVENT event type"
+    (let [expected  (mg/generate types/ResponseEvent)
+          response-event-json (json/write-value-as-string expected)
+          actual (relay/read-event response-event-json)]
+      (is (= actual expected)))))
