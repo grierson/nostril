@@ -12,15 +12,11 @@
    [nostril.types :as types]
    [tick.core :as t]))
 
-(defn now [clock] (t/with-clock clock (str (t/now))))
+(defn now [clock] (t/with-clock clock (t/now)))
 
 (defn submit! [stream event] (s/try-put! stream (json/write-value-as-string event) 1000 :timeout))
 (defn connect! [url] (http/websocket-client url))
 (defn close! [connection] (http/websocket-close! connection))
-
-;; Should be 64 hex for authors filter
-(def jack "npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m")
-(def jack-hex64 "82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2")
 
 (defn request-event
   ([filters] (request-event (random-uuid) filters))
@@ -38,32 +34,28 @@
       "EOSE" (m/decode types/EoseEvent event mt/string-transformer)
       event)))
 
-(defn callback
-  [event-store clock relay raw-event]
-  (let [[event-type subscription-id :as event] (read-event raw-event)]
-    (case event-type
-      "EVENT"
-      (event-handler/raise
-       event-store
-       {:id (random-uuid)
-        :type :event-received
-        :time (now clock)
-        :data-content-type event-type
-        :data event
-        :source (:url relay)})
+(defn store-event!
+  [event-store clock relay [event-type :as event]]
+  (when (contains? #{"EVENT" "EOSE"} event-type)
+    (event-handler/raise
+     event-store
+     {:id (random-uuid)
+      :type :event-received
+      :time (now clock)
+      :data-content-type event-type
+      :data event
+      :source (:url relay)})))
 
-      "EOSE"
-      (submit! (:stream relay) (close-event subscription-id))
-
-      (println event))))
-
-(defn connect-to-relay!
-  [event-handler clock url]
+(defn connect-to-relay! [url]
   (let [stream @(connect! url)
         relay {:stream stream
                :url url}]
-    (s/consume (partial callback event-handler clock relay) stream)
     relay))
+
+(defn consume-events-to-store! [clock event-handler relay]
+  (s/consume
+   (fn [raw-event] (store-event! event-handler clock relay (read-event raw-event)))
+   (:stream relay)))
 
 (defn add-relay
   "Add relay to relays"
@@ -72,7 +64,8 @@
 
 (comment
   (def event-handler (event-handler/make-atom-event-handler))
-  (def relay (connect-to-relay! event-handler (t/clock) "wss://relay.damus.io"))
-  (def consumer (submit! (:stream relay) (request-event {:limit 10})))
+  (def relay (connect-to-relay! "wss://relay.damus.io"))
+  (consume-events-to-store! (t/clock) event-handler relay)
+  (submit! (:stream relay) (request-event {:limit 10}))
   (event-handler/fetch-all event-handler)
   (count (event-handler/fetch-all event-handler)))

@@ -54,7 +54,7 @@
           relays (relay/add-relay {} {:url relay-uri})]
       (is (true? (contains? relays relay-uri))))))
 
-(deftest callback-test
+(deftest store-event-test
   (testing "Raise event when Nostr event received"
     (let [[_event-type subscription-id :as nostr-event] (mg/generate types/ResponseEvent)
           relay-url "ws://nostr.relay"
@@ -62,19 +62,25 @@
                  :stream (s/stream)}
           event-handler (event-handler/make-atom-event-handler)
           fixed-clock (t/clock (t/now))
-          _ (relay/callback event-handler fixed-clock relay (json/write-value-as-string nostr-event))
+          _ (relay/store-event! event-handler fixed-clock relay nostr-event)
           events (event-handler/fetch-all event-handler)
           first-event (first events)
           [_event-type event-subscription-id] (:data first-event)]
       (is (= (:type first-event) :event-received))
       (is (= (:data-content-type first-event) "EVENT"))
       (is (= (:source first-event) relay-url))
-      (is (= (:time first-event) (str (t/instant fixed-clock))))
+      (is (= (:time first-event) (t/instant fixed-clock)))
       (is (= subscription-id event-subscription-id)))))
 
 (deftest read-test
   (testing "read EVENT event type"
-    (let [expected  (mg/generate types/ResponseEvent)
+    (let [expected (mg/generate types/ResponseEvent)
+          response-event-json (json/write-value-as-string expected)
+          actual (relay/read-event response-event-json)]
+      (is (= actual expected))))
+
+  (testing "read EOSE event type"
+    (let [expected (mg/generate types/EoseEvent)
           response-event-json (json/write-value-as-string expected)
           actual (relay/read-event response-event-json)]
       (is (= actual expected)))))

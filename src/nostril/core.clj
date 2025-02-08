@@ -5,16 +5,14 @@
    [nostril.relay :as relay]
    [tick.core :as t]))
 
-(defn setup
-  "Setup event handler, relay store"
-  []
-  (let [event-handler (event-handler/make-atom-event-handler)
-        relays (atom {})]
-    {:event-handler event-handler
-     :relays relays}))
+(defn configurator
+  "Setup system"
+  [{:keys [event-handler]
+    :or {event-handler (event-handler/make-atom-event-handler)}}]
+  {:event-handler event-handler})
 
 (comment
-  (def system (setup))
+  (def system (configurator {}))
   (def event-handler (:event-handler system))
   (def relay-url "wss://relay.damus.io")
   (def relay (relay/connect-to-relay! relay-url))
