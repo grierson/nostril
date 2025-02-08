@@ -38,32 +38,21 @@
 (deftest submit-connection-test
   (with-handler echo-handler
     (let [relay-url "ws://localhost:8080"
-          relay-stream @(relay/connect relay-url)
+          relay-stream @(relay/connect! relay-url)
           event (relay/request-event {})]
-      (is (true? @(relay/submit relay-stream event))))))
+      (is (true? @(relay/submit! relay-stream event))))))
 
 (deftest close-connection-test
   (with-handler echo-handler
     (let [relay-url "ws://localhost:8080"
-          relay-stream @(relay/connect relay-url)]
-      (is (true? @(relay/close relay-stream))))))
+          relay-stream @(relay/connect! relay-url)]
+      (is (true? @(relay/close! relay-stream))))))
 
 (deftest add-relay-test
   (testing "adds relay to relays"
-    (with-handler echo-handler
-      (let [relays (atom {})
-            relay-url "ws://localhost:8080"
-            _ @(relay/add-relay relays relay-url)]
-        (is (true? (contains? @relays relay-url))))))
-
-  (testing "closing relay stream removes relay from relays"
-    (with-handler echo-handler
-      (let [relays (atom {})
-            relay-url "ws://localhost:8080"
-            _ @(relay/add-relay relays relay-url)
-            relay-stream (get-in @relays [relay-url :stream])
-            _ (s/close! relay-stream)]
-        (is (true? (empty? @relays)))))))
+    (let [relay-uri (mg/generate uri?)
+          relays (relay/add-relay {} {:url relay-uri})]
+      (is (true? (contains? relays relay-uri))))))
 
 (deftest callback-test
   (testing "Raise event when Nostr event received"

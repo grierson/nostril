@@ -1,7 +1,4 @@
-(comment
-  "Everything related to interacting with Nostr relay.
-  
-  Store parsing, ")
+(comment "Everything related to interacting with Nostr relay")
 
 (ns nostril.relay
   (:require
@@ -17,9 +14,9 @@
 
 (defn now [clock] (t/with-clock clock (str (t/now))))
 
-(defn submit [stream event] (s/try-put! stream (json/write-value-as-string event) 1000 :timeout))
-(defn connect [url] (http/websocket-client url))
-(defn close [connection] (http/websocket-close! connection))
+(defn submit! [stream event] (s/try-put! stream (json/write-value-as-string event) 1000 :timeout))
+(defn connect! [url] (http/websocket-client url))
+(defn close! [connection] (http/websocket-close! connection))
 
 ;; Should be 64 hex for authors filter
 (def jack "npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m")
@@ -32,20 +29,6 @@
 
 (defn close-event [subscription-id]
   ["CLOSE" subscription-id])
-
-(defn make-relay
-  [url]
-  (let [stream @(connect url)]
-    {:stream stream
-     :url url}))
-
-(defn add-relay
-  "Create relay connection and attach to main stream"
-  [relays url]
-  (let [relay (make-relay url)]
-    (swap! relays assoc url relay)
-    (s/on-closed (:stream relay) (fn [] (swap! relays dissoc url)))
-    relays))
 
 (defn read-event [event-json]
   (let [[event-type :as event] (json/read-value event-json json/keyword-keys-object-mapper)]
@@ -70,23 +53,26 @@
         :source (:url relay)})
 
       "EOSE"
-      (submit (:stream relay) (close-event subscription-id))
+      (submit! (:stream relay) (close-event subscription-id))
 
       (println event))))
 
-(defn fetch-latest
-  [event-store clock limit relay]
-  (let [event (request-event {:limit limit})]
-    (submit (:stream relay) event)
-    (s/consume (partial callback event-store clock relay) (:stream relay))))
+(defn connect-to-relay!
+  [event-handler clock url]
+  (let [stream @(connect! url)
+        relay {:stream stream
+               :url url}]
+    (s/consume (partial callback event-handler clock relay) stream)
+    relay))
+
+(defn add-relay
+  "Add relay to relays"
+  [relays {:keys [url] :as relay}]
+  (assoc relays url relay))
 
 (comment
-  (def relay-stream (make-relay "wss://relay.damus.io"))
-  (def eh (event-handler/make-atom-event-handler))
-  (def consumer (fetch-latest
-                 eh
-                 (t/clock)
-                 10
-                 relay-stream))
-  (event-handler/fetch-all eh)
-  (count (event-handler/fetch-all eh)))
+  (def event-handler (event-handler/make-atom-event-handler))
+  (def relay (connect-to-relay! event-handler (t/clock) "wss://relay.damus.io"))
+  (def consumer (submit! (:stream relay) (request-event {:limit 10})))
+  (event-handler/fetch-all event-handler)
+  (count (event-handler/fetch-all event-handler)))

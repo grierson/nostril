@@ -8,26 +8,15 @@
 (defn setup
   "Setup event handler, relay store"
   []
-  (let [handler (event-handler/make-atom-event-handler)
+  (let [event-handler (event-handler/make-atom-event-handler)
         relays (atom {})]
-    {:handler handler
+    {:event-handler event-handler
      :relays relays}))
-
-(defn -main [& args]
-  (let [{:keys [relays handler]} (setup)
-        relay-url "wss://relay.damus.io"
-        _ @(relay/add-relay relays relay-url)
-        relay-stream (get @relays relay-url)
-        _ @(relay/fetch-latest relay-stream)]
-    (event-handler/fetch-all handler)))
 
 (comment
   (def system (setup))
-  (def handler (:handler system))
-  (def relays (:relays system))
+  (def event-handler (:event-handler system))
   (def relay-url "wss://relay.damus.io")
-  @(relay/add-relay relays relay-url)
-  (def relay-stream (get @relays relay-url))
-  (:stream relay-stream)
-  (def submission (relay/fetch-latest (t/clock) (:stream relay-stream)))
-  (count (event-handler/fetch-all handler)))
+  (def relay (relay/connect-to-relay! relay-url))
+  (def submission (relay/fetch-latest event-handler (t/clock) (:stream relay)))
+  (count (event-handler/fetch-all event-handler)))
