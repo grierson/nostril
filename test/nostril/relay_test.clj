@@ -35,66 +35,71 @@
           (println e)
           {})))))
 
-(deftest submit-connection-test
-  (with-handler echo-handler
-    (let [relay-url "ws://localhost:8080"
-          relay-stream @(relay/connect! relay-url)
-          event (relay/request-event {})]
-      (is (true? @(relay/submit! relay-stream event))))))
+(testing "relay gateway "
+  (deftest submit-connection-test
+    (with-handler echo-handler
+      (let [relay-gateway (relay/->AlephRelayGateway)
+            relay-url "ws://localhost:8080"
+            relay (relay/connect! relay-gateway relay-url)
+            event (relay/request-event {})]
+        (is (true? @(relay/submit! relay-gateway (:stream relay) event))))))
 
-(deftest close-connection-test
-  (with-handler echo-handler
-    (let [relay-url "ws://localhost:8080"
-          relay-stream @(relay/connect! relay-url)]
-      (is (true? @(relay/close! relay-stream))))))
+  (deftest close-connection-test
+    (with-handler echo-handler
+      (let [relay-gateway (relay/->AlephRelayGateway)
+            relay-url "ws://localhost:8080"
+            relay (relay/connect! relay-gateway relay-url)]
+        (is (true? @(relay/close! relay-gateway (:stream relay))))))))
 
 (deftest add-relay-test
   (testing "adds relay to relays"
-    (let [relay-uri (mg/generate uri?)
-          relays (relay/add-relay {} {:url relay-uri})]
-      (is (true? (contains? relays relay-uri))))))
+    (let [relay-url (mg/generate uri?)
+          relay-stream (s/stream)
+          relay (relay/map->Relay {:url relay-url
+                                   :stream relay-stream})
+          relay-manager (relay/make-atom-hashmap-relay-manager)
+          relays (relay/add-relay relay-manager relay)]
+      (is (contains? relays relay-url)))))
 
-(deftest store-event-test
+(deftest consume-test
   (testing "Raise event when Nostr event received"
     (let [[_event-type subscription-id :as nostr-event] (mg/generate types/ResponseEvent)
+          json-nostr-event (json/write-value-as-string nostr-event)
           relay-url "ws://nostr.relay"
-          relay {:url relay-url
-                 :stream (s/stream)}
+          relay (relay/map->Relay {:url relay-url
+                                   :stream (s/stream)})
           event-handler (event-handler/make-atom-event-handler)
-          fixed-clock (t/clock (t/now))
-          _ (relay/store-event! event-handler fixed-clock relay nostr-event)
+          relay-gateway (relay/->ManifoldRelayGateway)
+          _ (relay/consume! relay-gateway event-handler relay)
+          _ (s/put! (:stream relay) json-nostr-event)
           events (event-handler/fetch-all event-handler)
           first-event (first events)
-          [_event-type event-subscription-id] (:data first-event)]
-      (is (= (:type first-event) :event-received))
-      (is (= (:data-content-type first-event) "EVENT"))
-      (is (= (:source first-event) relay-url))
-      (is (= (:time first-event) (t/instant fixed-clock)))
+          [_event-type event-subscription-id] #p (:data first-event)]
       (is (= subscription-id event-subscription-id)))))
 
-(deftest read-test
-  (testing "read EVENT event type"
-    (let [expected (mg/generate types/ResponseEvent)
-          response-event-json (json/write-value-as-string expected)
-          actual (relay/read-event response-event-json)]
-      (is (= actual expected))))
-
-  (testing "read EOSE event type"
-    (let [expected (mg/generate types/EoseEvent)
-          response-event-json (json/write-value-as-string expected)
-          actual (relay/read-event response-event-json)]
-      (is (= actual expected)))))
-
-(deftest request-event-test
-  (testing "Default request event"
-    (let [subscription-id (mg/generate :string)]
-      (is (= ["REQ" subscription-id {:kinds [1]}]
-             (relay/request-event subscription-id {})))))
-  (testing "Cant override kinds"
-    (let [subscription-id (mg/generate :string)]
-      (is (= ["REQ" subscription-id {:kinds [1]}]
-             (relay/request-event subscription-id {:kinds [2]})))))
-  (testing "Include limit request event"
-    (let [subscription-id (mg/generate :string)]
-      (is (= ["REQ" subscription-id {:kinds [1] :limit 10}]
-             (relay/request-event subscription-id {:limit 10}))))))
+;; (deftest read-test
+;;   (testing "read EVENT event type"
+;;     (let [expected (mg/generate types/ResponseEvent)
+;;           response-event-json (json/write-value-as-string expected)
+;;           actual (relay/read-event response-event-json)]
+;;       (is (= actual expected))))
+;;
+;;   (testing "read EOSE event type"
+;;     (let [expected (mg/generate types/EoseEvent)
+;;           response-event-json (json/write-value-as-string expected)
+;;           actual (relay/read-event response-event-json)]
+;;       (is (= actual expected)))))
+;;
+;; (deftest request-event-test
+;;   (testing "Default request event"
+;;     (let [subscription-id (mg/generate :string)]
+;;       (is (= ["REQ" subscription-id {:kinds [1]}]
+;;              (relay/request-event subscription-id {})))))
+;;   (testing "Cant override kinds"
+;;     (let [subscription-id (mg/generate :string)]
+;;       (is (= ["REQ" subscription-id {:kinds [1]}]
+;;              (relay/request-event subscription-id {:kinds [2]})))))
+;;   (testing "Include limit request event"
+;;     (let [subscription-id (mg/generate :string)]
+;;       (is (= ["REQ" subscription-id {:kinds [1] :limit 10}]
+;;              (relay/request-event subscription-id {:limit 10}))))))

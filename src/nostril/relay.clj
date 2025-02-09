@@ -9,14 +9,7 @@
    [malli.transform :as mt]
    [manifold.stream :as s]
    [nostril.event-handler :as event-handler]
-   [nostril.types :as types]
-   [tick.core :as t]))
-
-(defn now [clock] (t/with-clock clock (t/now)))
-
-(defn submit! [stream event] (s/try-put! stream (json/write-value-as-string event) 1000 :timeout))
-(defn connect! [url] (http/websocket-client url))
-(defn close! [connection] (http/websocket-close! connection))
+   [nostril.types :as types]))
 
 (defn request-event
   ([filters] (request-event (random-uuid) filters))
@@ -26,46 +19,74 @@
 (defn close-event [subscription-id]
   ["CLOSE" subscription-id])
 
-(defn read-event [event-json]
-  (let [[event-type :as event] (json/read-value event-json json/keyword-keys-object-mapper)]
-    (case event-type
-      "EVENT" (m/decode types/ResponseEvent event mt/string-transformer)
-      "NOTICE" (pprint/pprint event)
-      "EOSE" (m/decode types/EoseEvent event mt/string-transformer)
-      event)))
+(defn read-event [[event-type :as event]]
+  (case event-type
+    "EVENT" (m/decode types/ResponseEvent event mt/string-transformer)
+    "NOTICE" (pprint/pprint event)
+    "EOSE" (m/decode types/EoseEvent event mt/string-transformer)
+    event))
 
-(defn store-event!
-  [event-store clock relay [event-type :as event]]
-  (when (contains? #{"EVENT" "EOSE"} event-type)
-    (event-handler/raise
-     event-store
-     {:id (random-uuid)
-      :type :event-received
-      :time (now clock)
-      :data-content-type event-type
-      :data event
-      :source (:url relay)})))
+(defprotocol RelayManager
+  (add-relay [_this relay])
+  (get-relay [_this url]))
 
-(defn connect-to-relay! [url]
-  (let [stream @(connect! url)
-        relay {:stream stream
-               :url url}]
-    relay))
+(defrecord AtomRelayManager [relays]
+  RelayManager
+  (add-relay [_this {:keys [url] :as relay}]
+    (swap! relays assoc url relay))
+  (get-relay [_this url]
+    (get @relays url)))
 
-(defn consume-events-to-store! [clock event-handler relay]
-  (s/consume
-   (fn [raw-event] (store-event! event-handler clock relay (read-event raw-event)))
-   (:stream relay)))
+(defn make-atom-hashmap-relay-manager []
+  (->AtomRelayManager (atom {})))
 
-(defn add-relay
-  "Add relay to relays"
-  [relays {:keys [url] :as relay}]
-  (assoc relays url relay))
+(defprotocol RelayGateway
+  (connect! [this url])
+  (submit! [this relay-stream event])
+  (close! [this relay-stream])
+  (consume! [_this event-handler relay]))
+
+(defrecord Relay [url stream])
+
+(defrecord ManifoldRelayGateway []
+  RelayGateway
+  (connect! [_this url]
+    (let [stream (s/stream)
+          relay (map->Relay {:stream stream :url url})]
+      relay))
+  (consume! [_this event-handler relay]
+    (s/consume
+     (fn [raw-event]
+       (let [event (json/read-value raw-event json/keyword-keys-object-mapper)]
+         (event-handler/raise event-handler (read-event event))))
+     (:stream relay)))
+  (submit! [_this relay-stream event]
+    (s/try-put! relay-stream (json/write-value-as-string event) 1000 :timeout))
+  (close! [_this relay-stream]
+    (s/close! relay-stream)))
+
+(defrecord AlephRelayGateway []
+  RelayGateway
+  (connect! [_this url]
+    (let [stream @(http/websocket-client url)
+          relay (map->Relay {:stream stream :url url})]
+      relay))
+  (consume! [_this event-handler relay]
+    (s/consume
+     (fn [raw-event]
+       (let [event (json/read-value raw-event json/keyword-keys-object-mapper)]
+         (event-handler/raise event-handler event)))
+     (:stream relay)))
+  (submit! [_this relay-stream event]
+    (s/try-put! relay-stream (json/write-value-as-string event) 1000 :timeout))
+  (close! [_this relay-stream]
+    (http/websocket-close! relay-stream)))
 
 (comment
   (def event-handler (event-handler/make-atom-event-handler))
-  (def relay (connect-to-relay! "wss://relay.damus.io"))
-  (consume-events-to-store! (t/clock) event-handler relay)
-  (submit! (:stream relay) (request-event {:limit 10}))
+  (def relay-gateway (->AlephRelayGateway))
+  (def relay-url "wss://relay.damus.io")
+  (connect! relay-gateway relay-url)
+  (submit! relay-gateway relay-url (request-event {:limit 10}))
   (event-handler/fetch-all event-handler)
   (count (event-handler/fetch-all event-handler)))
