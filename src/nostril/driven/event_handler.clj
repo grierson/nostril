@@ -4,7 +4,7 @@
 
 (defn nostr-event->event
   [[event-type _subscription-id _data :as event]]
-  (when (contains? #{"EVENT" "EOSE"} #p event-type)
+  (when (contains? #{"EVENT" "EOSE"} event-type)
     {:id (random-uuid)
      :type :event-received
      :data-content-type event-type
@@ -13,7 +13,7 @@
 (defrecord AtomEventHandler [events]
   ports/EventHandler
   (fetch-all [_this] @events)
-  (raise [_this event]
+  (raise! [_this event]
     (let [domain-event (nostr-event->event event)]
       (swap! events conj domain-event))))
 
@@ -22,5 +22,5 @@
 
 (comment
   (def event-handler (make-atom-event-handler))
-  (ports/raise event-handler [1 2 {:id 123 :name "foo"}])
+  (ports/raise! event-handler [1 2 {:id 123 :name "foo"}])
   (ports/fetch-all event-handler))

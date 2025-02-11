@@ -10,23 +10,22 @@
    [nostril.driven.ports :as ports]
    [nostril.types :as types]))
 
-(defn make-inmemory-relay-manager [event-handler relay-url]
+(defn make-inmemory-relay-manager []
   (let [relay-stream (s/stream)
+        event-handler (event-handler/make-atom-event-handler)
         relay-gateway (relay/->InMemoryRelayGateway relay-stream)
-        relay-manager (relay/make-atom-hashmap-relay-manager event-handler relay-gateway)
-        _ (ports/add-relay! relay-manager relay-url)]
+        relay-manager (relay/make-atom-hashmap-relay-manager event-handler relay-gateway)]
     relay-manager))
 
 (deftest consume-test
   (testing "Raise event when Nostr event received"
     (let [relay-url "ws://nostr.relay"
-          event-handler (event-handler/make-atom-event-handler)
-          relay-manager (make-inmemory-relay-manager event-handler relay-url)
-          _ (ports/connect! (:relay-gateway relay-manager) relay-url)
+          {:keys [event-handler] :as relay-manager} (make-inmemory-relay-manager)
+          _ (ports/add-relay! relay-manager relay-url)
           [_event-type subscription-id :as event] (mg/generate types/ResponseEvent)
           _ (ports/submit! relay-manager relay-url event)
           events (ports/fetch-all event-handler)
-          first-event #p (first events)
+          first-event (first events)
           [_event-type event-subscription-id] (:data first-event)]
       (is (= subscription-id event-subscription-id)))))
 

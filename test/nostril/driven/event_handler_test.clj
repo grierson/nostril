@@ -10,7 +10,7 @@
   (testing "raise event to event store"
     (let [event-handler (event-handler/make-atom-event-handler)
           event (mg/generate types/ResponseEvent)
-          _ (ports/raise event-handler event)
+          _ (ports/raise! event-handler event)
           events (ports/fetch-all event-handler)
           first-event (first events)]
       (is (= event (:data first-event))))))

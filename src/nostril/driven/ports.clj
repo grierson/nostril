@@ -6,7 +6,7 @@
 
 (defprotocol EventHandler
   (fetch-all [_this])
-  (raise [_this event]))
+  (raise! [_this event]))
 
 (defprotocol RelayManager
   (add-relay! [this relay])

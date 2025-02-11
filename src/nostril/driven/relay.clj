@@ -52,7 +52,7 @@
       (s/consume
        (fn [raw-event]
          (let [event (json/read-value raw-event json/keyword-keys-object-mapper)]
-           (ports/raise event-handler (read-event event))))
+           (ports/raise! event-handler (read-event event))))
        relay-stream)
       (swap! relays assoc url relay)))
   (get-relay [_this url]
