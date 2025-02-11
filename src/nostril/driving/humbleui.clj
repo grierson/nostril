@@ -1,4 +1,4 @@
-(ns nostril.humbleui
+(ns nostril.driving.humbleui
   (:require
    [hashp.core]
    [io.github.humbleui.signal :as signal]

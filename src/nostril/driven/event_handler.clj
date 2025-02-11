@@ -1,19 +1,17 @@
-(ns nostril.event-handler)
+(ns nostril.driven.event-handler
+  (:require
+   [nostril.driven.ports :as ports]))
 
 (defn nostr-event->event
-  [[event-type :as event]]
-  (when (contains? #{"EVENT" "EOSE"} event-type)
+  [[event-type _subscription-id _data :as event]]
+  (when (contains? #{"EVENT" "EOSE"} #p event-type)
     {:id (random-uuid)
      :type :event-received
      :data-content-type event-type
      :data event}))
 
-(defprotocol EventHandler
-  (fetch-all [_this])
-  (raise [_this event]))
-
 (defrecord AtomEventHandler [events]
-  EventHandler
+  ports/EventHandler
   (fetch-all [_this] @events)
   (raise [_this event]
     (let [domain-event (nostr-event->event event)]
@@ -24,5 +22,5 @@
 
 (comment
   (def event-handler (make-atom-event-handler))
-  (raise event-handler [1 2 {:id 123 :name "foo"}])
-  (fetch-all event-handler))
+  (ports/raise event-handler [1 2 {:id 123 :name "foo"}])
+  (ports/fetch-all event-handler))
