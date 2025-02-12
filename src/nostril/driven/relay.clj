@@ -58,8 +58,9 @@
   (get-relay [_this url]
     (get @relays url))
   (remove-relay! [_this url]
-    (ports/close! relay-gateway url)
-    (swap! relays dissoc url))
+    (let [relay (get @relays url)]
+      (ports/close! relay-gateway (:stream relay))
+      (swap! relays dissoc url)))
   (submit! [_this url event]
     (let [relay (get @relays url)]
       (s/try-put! (:stream relay) (json/write-value-as-string event) 1000 :timeout))))
