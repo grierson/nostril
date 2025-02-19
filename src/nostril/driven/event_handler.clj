@@ -1,6 +1,5 @@
 (ns nostril.driven.event-handler
-  (:require
-   [nostril.driven.ports :as ports]))
+  (:require [nostril.driven.ports :as ports]))
 
 (defn nostr-event->event
   [[event-type _subscription-id _data :as event]]

@@ -3,10 +3,8 @@
    [hashp.core]
    [io.github.humbleui.signal :as signal]
    [io.github.humbleui.ui :as ui]
-   [nostril.dummy :as dummy]
-   [tick.core :as t]))
-
-(signal/defsignal *events dummy/events)
+   [tick.core :as t]
+   [nostril.driving.ports :as driving-ports]))
 
 (defonce *content (signal/signal "Events"))
 
@@ -85,7 +83,7 @@
 
 (ui/defcomp EventsContent []
   [ui/grid {:cols 1}
-   (for [event @*events]
+   (for [event []]
      (let [[_id body] event]
        [ui/rect {:paint [{:fill   "FFDB2C80"}
                          {:stroke "808080"}]}
@@ -120,7 +118,7 @@
        "Authors" AuthorsContent
        "Events" EventsContent)]]])
 
-(defn make-app []
+(defn make-app [system]
   (ui/start-app!
    (ui/window
     {:title    "Nostril"}

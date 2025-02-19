@@ -1,17 +1,34 @@
 (ns nostril.core
   (:require
    [hashp.core]
-   [nostril.driven.event-handler :as event-handler]
-   [nostril.driven.ports :as ports]
-   [nostril.driven.relay :as relay]))
+   [nostril.driving.ports :as driving-ports]
+   [nostril.driven.ports :as driven-ports]
+   [nostril.driven.relay :as relay]
+   [nostril.driving.humbleui :as humbleui]
+   [nostril.util :as util]
+   [nostril.driven.event-handler :as event-handler]))
 
 (defn configurator
-  "Setup system"
-  [{:keys [event-handler relay-gateway]
-    :or {event-handler (event-handler/make-atom-event-handler)
-         relay-gateway (relay/->AlephRelayGateway)}}]
-  {:event-handler event-handler
-   :relay-gateway relay-gateway})
+  "Setup driven components"
+  [{:keys [relay-gateway]
+    :or {relay-gateway (relay/->AlephRelayGateway)}}]
+  (let [event-handler (event-handler/make-atom-event-handler)]
+    {:event-handler event-handler
+     :relay-gateway relay-gateway}))
+
+(defrecord Nostril [driven]
+  driving-ports/DrivingPorts
+  (get-events [_this]
+    (driven-ports/fetch-all (:event-handler driven))))
+
+(defn make-application []
+  (let [application (configurator {})
+        system (->Nostril application)]
+    system))
+
+(comment
+  (make-application)
+  (humbleui/make-app (make-application)))
 
 (comment
   (def system (configurator {}))
@@ -19,10 +36,15 @@
   (def relay-gateway (:relay-gateway system))
   (def relay-manager (relay/make-atom-hashmap-relay-manager event-handler relay-gateway))
   (def relay-url "wss://relay.damus.io")
-  (def relay (ports/add-relay! relay-manager relay-url))
-  (ports/get-relay relay-manager relay-url)
-  (ports/submit! relay-manager relay-url (relay/request-event {}))
-  (def events (ports/fetch-all event-handler))
-  (take 10 (ports/fetch-all event-handler))
-  (ports/remove-relay! relay-manager relay-url)
-  (count (ports/fetch-all event-handler)))
+  (def relay (driven-ports/add-relay! relay-manager relay-url))
+  (driven-ports/get-relay relay-manager relay-url)
+  (driven-ports/submit!
+   relay-manager
+   relay-url
+   (relay/request-event {:since (- (util/now) 3600)
+                         :until (util/now)
+                         :limit 10}))
+  (def events (driven-ports/fetch-all event-handler))
+  (take 10 (driven-ports/fetch-all event-handler))
+  (driven-ports/remove-relay! relay-manager relay-url)
+  (count (driven-ports/fetch-all event-handler)))
