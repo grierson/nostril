@@ -2,32 +2,30 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [hashp.core]
+   [manifold.stream :as s]
    [jsonista.core :as json]
    [malli.generator :as mg]
-   [manifold.stream :as s]
    [nostril.driven.relay :as relay]
-   [nostril.driven.event-handler :as event-handler]
    [nostril.driven.ports :as ports]
    [nostril.types :as types]))
 
 (defn make-inmemory-relay-manager []
-  (let [relay-stream (s/stream)
-        event-handler (event-handler/make-atom-event-handler)
-        relay-gateway (relay/->InMemoryRelayGateway relay-stream)
-        relay-manager (relay/make-atom-hashmap-relay-manager event-handler relay-gateway)]
-    relay-manager))
+  (let [relay-gateway (relay/make-inmemory-relay-gateway)]
+    (relay/make-atom-hashmap-relay-manager relay-gateway)))
 
 (deftest consume-test
   (testing "Raise event when Nostr event received"
     (let [relay-url "ws://nostr.relay"
-          {:keys [event-handler] :as relay-manager} (make-inmemory-relay-manager)
+          relay-manager (make-inmemory-relay-manager)
           _ (ports/add-relay! relay-manager relay-url)
-          [_event-type subscription-id :as event] (mg/generate types/ResponseEvent)
-          _ (ports/submit! relay-manager relay-url event)
-          events (ports/fetch-all event-handler)
-          first-event (first events)
-          [_event-type event-subscription-id] (:data first-event)]
-      (is (= subscription-id event-subscription-id)))))
+          relay-connection (ports/get-relay relay-manager relay-url)
+          event (mg/generate types/ResponseEvent)
+          _ (ports/get-relay relay-manager relay-url)
+          _  (ports/submit! relay-manager relay-url event)]
+      (is (= event
+             (json/read-value
+              @(s/take! (:stream relay-connection))
+              json/keyword-keys-object-mapper))))))
 
 (deftest read-test
   (testing "read EVENT event type"

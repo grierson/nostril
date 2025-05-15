@@ -6,6 +6,7 @@
   hashp/hashp {:mvn/version "0.2.2"} ; pp
   aleph/aleph {:mvn/version "0.8.1"} ; websockets
   manifold/manifold {:mvn/version "0.4.3"} ; async
+  org.clojure/core.async {:mvn/version "1.9.808-alpha1"} ; async
   metosin/jsonista {:mvn/version "0.3.10"} ; json
   tick/tick {:mvn/version "0.7.5"} ; time
   metosin/malli {:mvn/version "0.16.2"} ; spec

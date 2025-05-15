@@ -12,7 +12,7 @@
   "Setup driven components"
   [{:keys [relay-gateway]
     :or {relay-gateway (relay/->AlephRelayGateway)}}]
-  (let [event-handler (event-handler/make-atom-event-handler)]
+  (let [event-handler (event-handler/make-atom-event-store)]
     {:event-handler event-handler
      :relay-gateway relay-gateway}))
 
@@ -36,9 +36,9 @@
   (def relay-gateway (:relay-gateway system))
   (def relay-manager (relay/make-atom-hashmap-relay-manager event-handler relay-gateway))
   (def relay-url "wss://relay.damus.io")
-  (def relay (driven-ports/add-relay! relay-manager relay-url))
-  (driven-ports/get-relay relay-manager relay-url)
-  (driven-ports/submit!
+  (def relay (driven-ports/add! relay-manager relay-url))
+  (driven-ports/fetch relay-manager relay-url)
+  (driven-ports/put!
    relay-manager
    relay-url
    (relay/request-event {:since (- (util/now) 3600)
@@ -46,5 +46,5 @@
                          :limit 10}))
   (def events (driven-ports/fetch-all event-handler))
   (take 10 (driven-ports/fetch-all event-handler))
-  (driven-ports/remove-relay! relay-manager relay-url)
+  (driven-ports/remove! relay-manager relay-url)
   (count (driven-ports/fetch-all event-handler)))

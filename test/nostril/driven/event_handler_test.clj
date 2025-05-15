@@ -7,10 +7,10 @@
    [nostril.types :as types]))
 
 (deftest AtomEventHandlerTest
-  (testing "raise event to event store"
-    (let [event-handler (event-handler/make-atom-event-handler)
+  (testing "add event to event store"
+    (let [event-store (event-handler/make-atom-event-store)
           event (mg/generate types/ResponseEvent)
-          _ (ports/raise! event-handler event)
-          events (ports/fetch-all event-handler)
+          _ (ports/add-event! event-store event)
+          events (ports/fetch-all event-store)
           first-event (first events)]
-      (is (= event (:data first-event))))))
+      (is (= event first-event)))))
