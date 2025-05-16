@@ -33,7 +33,9 @@
   (close! [_this _relay-stream] (s/close! stream))
   (put! [_this _relay-stream event] (s/put! stream (json/write-value-as-string event))))
 
-(defn make-inmemory-relay-gateway [] (->InMemoryRelayGateway (s/stream)))
+(defn make-inmemory-relay-gateway
+  ([] (->InMemoryRelayGateway (s/stream)))
+  ([stream] (->InMemoryRelayGateway stream)))
 
 (defrecord AlephRelayGateway []
   ports/RelayGateway

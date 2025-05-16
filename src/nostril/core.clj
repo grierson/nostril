@@ -34,17 +34,13 @@
   (def system (configurator {}))
   (def event-handler (:event-handler system))
   (def relay-gateway (:relay-gateway system))
-  (def relay-manager (relay/make-atom-hashmap-relay-manager event-handler relay-gateway))
+  (def relay-manager (relay/make-atom-hashmap-relay-manager relay-gateway))
   (def relay-url "wss://relay.damus.io")
-  (def relay (driven-ports/add! relay-manager relay-url))
-  (driven-ports/fetch relay-manager relay-url)
-  (driven-ports/put!
+  (driven-ports/submit!
    relay-manager
    relay-url
    (relay/request-event {:since (- (util/now) 3600)
                          :until (util/now)
                          :limit 10}))
   (def events (driven-ports/fetch-all event-handler))
-  (take 10 (driven-ports/fetch-all event-handler))
-  (driven-ports/remove! relay-manager relay-url)
-  (count (driven-ports/fetch-all event-handler)))
+  (take 10 (driven-ports/fetch-all event-handler)))
