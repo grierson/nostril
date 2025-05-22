@@ -29,9 +29,9 @@
 
 (defrecord InMemoryRelayGateway [stream]
   ports/RelayGateway
-  (connect! [_this _url] stream)
-  (close! [_this _relay-stream] (s/close! stream))
-  (put! [_this _relay-stream event] (s/put! stream (json/write-value-as-string event))))
+  (make-connection! [_this _url] stream)
+  (close-connection! [_this _connection])
+  (submit-relay! [_this _connection event] (s/put! stream (json/write-value-as-string event))))
 
 (defn make-inmemory-relay-gateway
   ([] (->InMemoryRelayGateway (s/stream)))
@@ -39,32 +39,32 @@
 
 (defrecord AlephRelayGateway []
   ports/RelayGateway
-  (connect! [_this url]
+  (make-connection! [_this url]
     (try
       @(http/websocket-client url)
       (catch Exception e
         (println "Failed to connect to relay:" url)
         (throw e))))
-  (close! [_this relay-stream] (http/websocket-close! relay-stream))
-  (put! [_this stream event] (s/put! stream (json/write-value-as-string event))))
+  (close-connection! [_this connection] (http/websocket-close! connection))
+  (submit-relay! [_this connection event] (s/put! connection  (json/write-value-as-string event))))
 
 (defrecord Relay [url stream])
 
 (defrecord AtomRelayManager [relays relay-gateway]
   ports/RelayManager
-  (add-relay! [_this url]
-    (let [relay-stream (ports/connect! relay-gateway url)
+  (connect! [_this url]
+    (let [relay-stream (ports/make-connection! relay-gateway url)
           relay (->Relay url relay-stream)]
       (swap! relays assoc url relay)))
-  (get-relay [_this url]
-    (get @relays url))
-  (remove-relay! [_this url]
+  (disconnect! [_this url subscripition-id]
     (let [relay (get @relays url)]
-      (ports/close! relay-gateway (:stream relay))
+      (ports/submit-relay! relay-gateway (:stream relay) (close-event subscripition-id))
+      (ports/close-connection! relay-gateway (:stream relay))
       (swap! relays dissoc url)))
-  (submit! [_this url event]
-    (let [relay (get @relays url)]
-      (ports/put! relay-gateway (:stream relay) event))))
+  (subscribe! [_this url event]
+    (let [relay (get @relays url)
+          stream (:stream relay)]
+      (ports/submit-relay! relay-gateway stream event))))
 
 (defn make-atom-hashmap-relay-manager [relay-gateway]
   (->AtomRelayManager (atom {}) relay-gateway))
@@ -73,9 +73,5 @@
   (def event-handler (event-handler/make-atom-event-store))
   (def relay-manager (make-atom-hashmap-relay-manager (->AlephRelayGateway)))
   (def relay-url "wss://relay.damus.io")
-  (ports/add-relay! relay-manager relay-url)
-  (ports/put! relay-manager relay-url (request-event {:limit 10}))
   (ports/fetch-all event-handler)
-  (http/websocket-close! (:stream (ports/get-relay relay-manager relay-url)))
-  ()
   (count (ports/fetch-all event-handler)))

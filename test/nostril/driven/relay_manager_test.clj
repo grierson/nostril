@@ -1,26 +1,26 @@
-(ns nostril.driven.relay-test
+(ns nostril.driven.relay-manager-test
   (:require
    [clojure.test :refer [deftest is testing]]
    [hashp.core]
-   [manifold.stream :as s]
    [jsonista.core :as json]
    [malli.generator :as mg]
-   [nostril.driven.relay :as relay]
+   [manifold.stream :as s]
    [nostril.driven.ports :as ports]
+   [nostril.driven.relay :as relay]
    [nostril.types :as types]))
 
 (defn make-inmemory-relay-manager [stream]
   (let [relay-gateway (relay/make-inmemory-relay-gateway stream)]
     (relay/make-atom-hashmap-relay-manager relay-gateway)))
 
-(deftest consume-test
+(deftest submit-test
   (testing "Submits REQ as json"
     (let [stream (s/stream)
-          relay-url "ws://nostr.relay"
+          url "ws://nostr.relay"
           relay-manager (make-inmemory-relay-manager stream)
-          _ (ports/add-relay! relay-manager relay-url)
+          _ (ports/connect! relay-manager url)
           event (mg/generate types/RequestEvent)
-          _  (ports/submit! relay-manager relay-url event)]
+          _  (ports/subscribe! relay-manager url event)]
       (is (= (json/write-value-as-string event)
              @(s/take! stream))))))
 
