@@ -39,17 +39,12 @@
   (humbleui/make-app (make-application)))
 
 (comment
-  (def system (make-driven-components {}))
-  (def event-handler (:event-handler system))
-  (def relay-gateway (:relay-gateway system))
-  (def relay-manager (:relay-manager system))
+  (def application (make-application))
   (def relay-url "wss://relay.damus.io")
-  (driven-ports/add-relay! relay-manager relay-url)
-  (driven-ports/subscribe!
-   relay-manager
-   relay-url
-   (relay/request-event {:since (- (util/now) 3600)
-                         :until (util/now)
-                         :limit 10}))
-  (def events (driven-ports/fetch-all event-handler))
-  (take 10 (driven-ports/fetch-all event-handler)))
+  (driving-ports/for-add-relay! application relay-url)
+  (driving-ports/for-send! application
+                           relay-url
+                           (relay/request-event {:since (- (util/now) 3600)
+                                                 :until (util/now)
+                                                 :limit 10}))
+  (take 10 (driving-ports/for-get-events application)))

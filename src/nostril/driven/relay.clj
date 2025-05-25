@@ -7,8 +7,8 @@
    [jsonista.core :as json]
    [malli.core :as m]
    [malli.transform :as mt]
+   [manifold.deferred :as deferred]
    [manifold.stream :as s]
-   [nostril.driven.event-handler :as event-handler]
    [nostril.driven.ports :as ports]
    [nostril.types :as types]))
 
@@ -56,22 +56,27 @@
     (let [relay-stream (ports/make-connection! relay-gateway url)
           relay (->Relay url relay-stream)]
       (swap! relays assoc url relay)))
-  (disconnect! [_this url subscripition-id]
+  (disconnect! [_this url]
     (let [relay (get @relays url)]
-      (ports/submit-relay! relay-gateway (:stream relay) (close-event subscripition-id))
       (ports/close-connection! relay-gateway (:stream relay))
       (swap! relays dissoc url)))
   (subscribe! [_this url event]
     (let [relay (get @relays url)
-          stream (:stream relay)]
-      (ports/submit-relay! relay-gateway stream event))))
+          stream (:stream relay)
+          [_ subscription-id _] event]
+      (ports/submit-relay! relay-gateway stream event)
+      (deferred/loop []
+        (let [msg (s/take! stream)
+              [event-type :as event] (-> msg
+                                         (json/read-value json/keyword-keys-object-mapper)
+                                         read-event)]
+          (if (= event-type "EOSE")
+            (do
+              (println "EOSE event recieved - closing subscription")
+              (ports/submit-relay! relay-gateway stream (close-event subscription-id)))
+            (do
+              (println event)
+              (deferred/recur))))))))
 
 (defn make-atom-hashmap-relay-manager [relay-gateway]
   (->AtomRelayManager (atom {}) relay-gateway))
-
-(comment
-  (def event-handler (event-handler/make-atom-event-store))
-  (def relay-manager (make-atom-hashmap-relay-manager (->AlephRelayGateway)))
-  (def relay-url "wss://relay.damus.io")
-  (ports/fetch-all event-handler)
-  (count (ports/fetch-all event-handler)))

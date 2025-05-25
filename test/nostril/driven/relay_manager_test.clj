@@ -20,7 +20,9 @@
           relay-manager (make-inmemory-relay-manager stream)
           _ (ports/connect! relay-manager url)
           event (mg/generate types/RequestEvent)
-          _  (ports/subscribe! relay-manager url event)]
+          _  (ports/subscribe! relay-manager url event)
+          _ (s/put! stream (json/write-value-as-string event))
+          _ (s/put! stream (mg/generate types/EoseEvent))]
       (is (= (json/write-value-as-string event)
              @(s/take! stream))))))
 
