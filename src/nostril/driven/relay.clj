@@ -31,22 +31,11 @@
   ports/RelayGateway
   (make-connection! [_this _url] stream)
   (close-connection! [_this _connection])
-  (submit-relay! [_this _connection event] (s/put! stream (json/write-value-as-string event))))
+  (send! [_this event] (s/put! stream (json/write-value-as-string event))))
 
 (defn make-inmemory-relay-gateway
   ([] (->InMemoryRelayGateway (s/stream)))
   ([stream] (->InMemoryRelayGateway stream)))
-
-(defrecord AlephRelayGateway []
-  ports/RelayGateway
-  (make-connection! [_this url]
-    (try
-      @(http/websocket-client url)
-      (catch Exception e
-        (println "Failed to connect to relay:" url)
-        (throw e))))
-  (close-connection! [_this connection] (http/websocket-close! connection))
-  (submit-relay! [_this connection event] (s/put! connection  (json/write-value-as-string event))))
 
 (defrecord Relay [url stream])
 
@@ -58,13 +47,13 @@
       (swap! relays assoc url relay)))
   (disconnect! [_this url]
     (let [relay (get @relays url)]
-      (ports/close-connection! relay-gateway (:stream relay))
+      (ports/disconnect! relay-gateway (:stream relay))
       (swap! relays dissoc url)))
   (subscribe! [_this url event]
     (let [relay (get @relays url)
           stream (:stream relay)
           [_ subscription-id _] event]
-      (ports/submit-relay! relay-gateway stream event)
+      (ports/send! relay-gateway event)
       (deferred/loop []
         (let [msg (s/take! stream)
               [event-type :as event] (-> msg
@@ -73,7 +62,8 @@
           (if (= event-type "EOSE")
             (do
               (println "EOSE event recieved - closing subscription")
-              (ports/submit-relay! relay-gateway stream (close-event subscription-id)))
+              (ports/send! relay-gateway (close-event subscription-id))
+              (ports/close-connection! relay-gateway))
             (do
               (println event)
               (deferred/recur))))))))

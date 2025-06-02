@@ -11,5 +11,5 @@
 
 (defprotocol RelayGateway
   (make-connection! [this url])
-  (close-connection! [_this connection])
-  (submit-relay! [this connection event]))
+  (close-connection! [_this])
+  (send! [this event]))
