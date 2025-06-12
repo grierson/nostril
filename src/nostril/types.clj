@@ -55,4 +55,5 @@
    [:subscription-id Subscription-id]])
 
 (comment
+  (mg/generate RequestEvent)
   (mg/generate ResponseEvent))

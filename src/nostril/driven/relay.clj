@@ -10,10 +10,10 @@
    [malli.core :as m]
    [malli.transform :as mt]
    [manifold.stream :as s]
-   [nostril.driven.ports :as ports]
    [nostril.types :as types]))
 
 (defn request-event
+  ([] (request-event (random-uuid) {}))
   ([filters] (request-event (random-uuid) filters))
   ([subscription-id filters]
    ["REQ" (str subscription-id) (merge filters {:kinds [1]})]))
@@ -34,8 +34,9 @@
 
 (defn consume [{:keys [websocket channel]}]
   (async/go-loop []
-    (let [msg (async/<! channel)
-          [event-type subscription-id :as event] (read-event (json/read-value (str msg)))]
+    (let
+     [msg (async/<! channel)
+      [event-type subscription-id :as event] (read-event (json/read-value (str msg)))]
       (if (= event-type "EOSE")
         (do
           (println "EOSE event recieved - closing subscription")
@@ -44,28 +45,26 @@
           (println event)
           (recur))))))
 
-(defrecord AtomRelayManager [relays]
-  ports/RelayManager
-  (connect! [_this url]
-    (let [connection (make-connection! {:type :hato} url)]
-      (swap! relays assoc url connection)))
-  (disconnect! [_this url]
-    (let [relay (get @relays url)]
-      (close-connection! relay)
-      (swap! relays dissoc url)))
-  (subscribe! [_this url event]
-    (let [relay (get @relays url)]
-      (send! relay event)
-      (consume relay))))
+(defn connect! [relays url & {:keys [ws-type] :or {ws-type :hato}}]
+  (let [connection (make-connection! {:type ws-type} url)]
+    (assoc relays url connection)))
 
-(defn make-atom-hashmap-relay-manager []
-  (->AtomRelayManager (atom {})))
+(defn disconnect! [relays url]
+  (let [relay (get relays url)]
+    (close-connection! relay)
+    (swap! relays dissoc url)))
+
+(defn subscribe! [relays url event]
+  (let [relay (get relays url)]
+    (send! relay event)
+    (consume relay)))
 
 (defmethod make-connection! :hato [m url]
   (let [channel (async/chan)
         websocket @(hato/websocket
                     url
-                    {:on-message (fn [_ws msg _last?] (async/put! channel msg))
+                    {:on-message (fn [_ws msg _last?]
+                                   (async/put! channel msg))
                      :on-close   (fn [_ws _status _reason] (println "WebSocket closed!"))})]
     (-> m
         (assoc :channel channel)
@@ -104,7 +103,5 @@
   (consume aleph-ws))
 
 (comment
-  (let [rm (make-atom-hashmap-relay-manager)
-        url "wss://relay.damus.io"]
-    (ports/connect! rm url)
-    (ports/subscribe! rm url (request-event (random-uuid) {:limit 10}))))
+  (connect! {} "wss://relay.damus.io")
+  (subscribe! (connect! {} "wss://relay.damus.io") "wss://relay.damus.io" (request-event (random-uuid) {:limit 10})))

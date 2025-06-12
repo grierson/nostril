@@ -1,8 +1,11 @@
-(ns nostril.driven.event-handler
-  (:require [nostril.driven.ports :as ports]))
+(ns nostril.driven.event-handler)
+
+(defprotocol EventStore
+  (fetch-all [_this])
+  (add-event! [_this event]))
 
 (defrecord AtomEventStore [events]
-  ports/EventStore
+  EventStore
   (fetch-all [_this] @events)
   (add-event! [_this event] (swap! events conj event)))
 

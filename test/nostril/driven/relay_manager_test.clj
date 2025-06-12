@@ -1,11 +1,33 @@
 (ns nostril.driven.relay-manager-test
   (:require
-   [clojure.test :refer [deftest is testing]]
+   [clojure.core.async :as async]
+   [clojure.test :refer [deftest is testing use-fixtures]]
    [hashp.core]
+   [hato.websocket :as hato]
    [jsonista.core :as json]
    [malli.generator :as mg]
-   [nostril.driven.relay :as relay]
-   [nostril.types :as types]))
+   [nostril.driven.relay :as relay :refer [request-event]]
+   [nostril.types :as types]
+   [org.httpkit.server :as http]))
+
+(defn ws-handler-async-client [req]
+  (http/as-channel
+   req
+   {:on-receive (fn [channel mesg] (http/send! channel mesg true))}))
+
+(use-fixtures
+  :once
+  (fn [f]
+    (let [server (http/run-server ws-handler-async-client {:port 4348})]
+      (try (f) (finally (server))))))
+
+(deftest test-websocket-ping-handler
+  (let [url "ws://localhost:4348/"
+        p (promise)
+        client @(hato/websocket url {:on-message (fn [_ws msg _last?] (deliver p msg))})
+        _ (hato/send! client "hello")]
+    (is (= 1 @p))
+    (hato/close! client)))
 
 (deftest read-test
   (testing "read EVENT event type"
