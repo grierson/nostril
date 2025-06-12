@@ -8,8 +8,3 @@
   (connect! [this url])
   (disconnect! [this url])
   (subscribe! [this url event]))
-
-(defprotocol RelayGateway
-  (make-connection! [this url])
-  (close-connection! [_this])
-  (send! [this event]))

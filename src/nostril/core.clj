@@ -10,20 +10,16 @@
 
 (defn make-driven-components
   "Setup driven components"
-  [{:keys [relay-manager relay-gateway event-handler]
-    :or {relay-gateway (relay/->AlephRelayGateway)
-         event-handler (event-handler/make-atom-event-store)}}]
-  (let [relay-manager (or relay-manager (relay/make-atom-hashmap-relay-manager relay-gateway))]
-    {:event-handler event-handler
-     :relay-gateway relay-gateway
-     :relay-manager relay-manager}))
+  [{:keys [relay-manager event-handler]
+    :or {event-handler (event-handler/make-atom-event-store)
+         relay-manager (relay/make-atom-hashmap-relay-manager)}}]
+  {:event-handler event-handler
+   :relay-manager relay-manager})
 
 (defrecord Application [event-handler relay-manager]
   driving-ports/DrivingPorts
   (for-add-relay! [_this url]
     (driven-ports/connect! relay-manager url))
-  (for-close-relay! [_this url]
-    (driven-ports/disconnect! relay-manager url))
   (for-send! [_this url event]
     (driven-ports/subscribe! relay-manager url event))
   (for-get-events [_this]
@@ -46,5 +42,4 @@
                            relay-url
                            (relay/request-event {:since (- (util/now) 3600)
                                                  :until (util/now)
-                                                 :limit 10}))
-  (take 10 (driving-ports/for-get-events application)))
+                                                 :limit 10})))

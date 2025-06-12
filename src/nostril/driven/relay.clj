@@ -27,15 +27,16 @@
 (defrecord AtomRelayManager [relays]
   ports/RelayManager
   (connect! [_this url]
-    (let [connection (websocket/make-hato-ws url)]
+    (let [connection (websocket/make-connection! {:type :hato} url)]
       (swap! relays assoc url connection)))
   (disconnect! [_this url]
     (let [relay (get @relays url)]
-      (ports/close-connection! relay)
+      (websocket/close-connection! relay)
       (swap! relays dissoc url)))
   (subscribe! [_this url event]
     (let [relay (get @relays url)]
-      (ports/send! relay event))))
+      (websocket/send! relay event)
+      (websocket/consume relay))))
 
 (defn make-atom-hashmap-relay-manager []
   (->AtomRelayManager (atom {})))
