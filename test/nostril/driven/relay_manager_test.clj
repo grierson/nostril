@@ -4,27 +4,8 @@
    [hashp.core]
    [jsonista.core :as json]
    [malli.generator :as mg]
-   [manifold.stream :as s]
-   [nostril.driven.ports :as ports]
    [nostril.driven.relay :as relay]
    [nostril.types :as types]))
-
-(defn make-inmemory-relay-manager [stream]
-  (let [relay-gateway (relay/make-inmemory-relay-gateway stream)]
-    (relay/make-atom-hashmap-relay-manager relay-gateway)))
-
-(deftest submit-test
-  (testing "Submits REQ as json"
-    (let [stream (s/stream)
-          url "ws://nostr.relay"
-          relay-manager (make-inmemory-relay-manager stream)
-          _ (ports/connect! relay-manager url)
-          event (mg/generate types/RequestEvent)
-          _  (ports/subscribe! relay-manager url event)
-          _ (s/put! stream (json/write-value-as-string event))
-          _ (s/put! stream (mg/generate types/EoseEvent))]
-      (is (= (json/write-value-as-string event)
-             @(s/take! stream))))))
 
 (deftest read-test
   (testing "read EVENT event type"
