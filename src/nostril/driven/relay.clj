@@ -2,14 +2,13 @@
 
 (ns nostril.driven.relay
   (:require
-   [aleph.http :as http]
    [clojure.core.async :as async]
    [clojure.pprint :as pprint]
    [hato.websocket :as hato]
    [jsonista.core :as json]
    [malli.core :as m]
    [malli.transform :as mt]
-   [manifold.stream :as s]
+   [hashp.core]
    [nostril.types :as types]))
 
 (defn request-event
@@ -45,23 +44,12 @@
           (println event)
           (recur))))))
 
-(defn disconnect! [relays url]
-  (let [relay (get relays url)]
-    (close-connection! relay)
-    (swap! relays dissoc url)))
-
-(defn subscribe! [relays url event]
-  (let [relay (get relays url)]
-    (send! relay event)
-    (consume relay)))
-
 (defmethod make-connection! :hato [{:keys [url] :as request}]
   (let [in-channel (async/chan)
         out-channel (async/chan)
         websocket @(hato/websocket
                     url
-                    {:on-message (fn [_ws msg _last?]
-                                   (async/put! out-channel msg))
+                    {:on-message (fn [_ws msg _last?] (async/put! out-channel msg))
                      :on-close   (fn [_ws _status _reason] (println "WebSocket closed!"))})]
     (async/go-loop []
       (when-let [event (async/<! in-channel)]
@@ -71,41 +59,15 @@
         (recur)))
     (-> request
         (assoc :in-channel in-channel)
-        (assoc :out-chnnel out-channel)
+        (assoc :out-channel out-channel)
         (assoc :websocket websocket))))
-
-(defmethod send! :hato [{:keys [websocket]} event]
-  (hato/send! websocket (json/write-value-as-string event)))
-
-(defmethod close-connection! :hato [{:keys [websocket]}]
-  (hato/close! websocket))
 
 (comment
   "Using Hato websockets"
-  (def hato-ws (make-connection! {:type :hato}  "wss://relay.damus.io"))
-  (send! hato-ws (request-event (random-uuid) {:limit 10}))
-  (consume hato-ws))
-
-(defmethod make-connection! :aleph [m url]
-  (let [channel (async/chan)
-        websocket @(http/websocket-client url)
-        _ (s/consume #(async/put! channel %) websocket)]
-    (-> m
-        (assoc :channel channel)
-        (assoc :websocket websocket))))
-
-(defmethod send! :aleph [{:keys [websocket]} event]
-  (s/put! websocket (json/write-value-as-string event)))
-
-(defmethod close-connection! :aleph [{:keys [websocket]}]
-  (http/websocket-close! websocket))
-
-(comment
-  "Using Aleph websockets"
-  (def aleph-ws (make-connection! {:type :aleph}  "wss://relay.damus.io"))
-  (send! aleph-ws (request-event (random-uuid) {:limit 10}))
-  (consume aleph-ws))
-
-(comment
-  (connect! {:url "wss://relay.damus.io"})
-  (subscribe! (connect! {} "wss://relay.damus.io") "wss://relay.damus.io" (request-event (random-uuid) {:limit 10})))
+  (def hato-ws (make-connection! {:ws-type :hato :url  "wss://relay.damus.io"}))
+  (async/go
+    (async/>! (:in-channel hato-ws) (request-event (random-uuid) {:limit 10})))
+  (async/go-loop []
+    (when-let [msg (async/<! (:out-channel hato-ws))]
+      (println msg)
+      (recur))))
