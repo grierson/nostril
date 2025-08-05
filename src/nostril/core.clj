@@ -1,5 +1,6 @@
 (ns nostril.core
   (:require
+   [clojure.core.async :as async]
    [hashp.core]
    [nostril.driven.event-handler :as event-handler]
    [nostril.driven.relay :as relay]
@@ -10,14 +11,13 @@
 (defrecord Application [event-handler relays]
   driving-ports/DrivingPorts
   (for-add-relay! [_this url]
-    (reset! relays (relay/connect! @relays url)))
+    (swap! relays assoc url (relay/make-connection! @relays url)))
   (for-send! [_this url event]
-    (relay/subscribe! @relays url event))
-  (for-get-events [_this]
-    (println event-handler)))
+    (relay/subscribe! @relays url event)))
 
 (defn make-application []
   (let [event-handler (event-handler/make-atom-event-store)
+        main-channel (async/chan)
         system (->Application event-handler (atom {}))]
     system))
 
@@ -27,6 +27,10 @@
 
 (comment
   (def application (make-application))
+  (async/go-loop []
+    (let [msg (async/<! (:main-channel application))]
+      (println msg)
+      (recur)))
   (def damus-url "wss://relay.damus.io")
   (def snort-url "wss://relay.snort.social")
   (driving-ports/for-add-relay! application damus-url)

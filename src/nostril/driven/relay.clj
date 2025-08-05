@@ -28,9 +28,9 @@
     "EOSE" (m/decode types/EoseEvent event mt/string-transformer)
     event))
 
-(defmulti make-connection! :type)
-(defmulti send! :type)
-(defmulti close-connection! :type)
+(defmulti make-connection! :ws-type)
+(defmulti send! :ws-type)
+(defmulti close-connection! :ws-type)
 
 (defn consume [{:keys [websocket channel]}]
   (async/go-loop []
@@ -45,10 +45,6 @@
           (println event)
           (recur))))))
 
-(defn connect! [relays url & {:keys [ws-type] :or {ws-type :hato}}]
-  (let [connection (make-connection! {:type ws-type} url)]
-    (assoc relays url connection)))
-
 (defn disconnect! [relays url]
   (let [relay (get relays url)]
     (close-connection! relay)
@@ -59,15 +55,23 @@
     (send! relay event)
     (consume relay)))
 
-(defmethod make-connection! :hato [m url]
-  (let [channel (async/chan)
+(defmethod make-connection! :hato [{:keys [url] :as request}]
+  (let [in-channel (async/chan)
+        out-channel (async/chan)
         websocket @(hato/websocket
                     url
                     {:on-message (fn [_ws msg _last?]
-                                   (async/put! channel msg))
+                                   (async/put! out-channel msg))
                      :on-close   (fn [_ws _status _reason] (println "WebSocket closed!"))})]
-    (-> m
-        (assoc :channel channel)
+    (async/go-loop []
+      (when-let [event (async/<! in-channel)]
+        (try
+          (hato/send! websocket (json/write-value-as-string event))
+          (catch Exception e (println e)))
+        (recur)))
+    (-> request
+        (assoc :in-channel in-channel)
+        (assoc :out-chnnel out-channel)
         (assoc :websocket websocket))))
 
 (defmethod send! :hato [{:keys [websocket]} event]
@@ -103,5 +107,5 @@
   (consume aleph-ws))
 
 (comment
-  (connect! {} "wss://relay.damus.io")
+  (connect! {:url "wss://relay.damus.io"})
   (subscribe! (connect! {} "wss://relay.damus.io") "wss://relay.damus.io" (request-event (random-uuid) {:limit 10})))
