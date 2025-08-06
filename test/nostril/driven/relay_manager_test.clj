@@ -27,11 +27,11 @@
 (deftest request-event-test
   (testing "Default request event"
     (let [subscription-id (mg/generate :string)]
-      (is (= ["REQ" subscription-id {:kinds [1]}]
+      (is (= ["REQ" subscription-id {:kinds [1] :limit 10}]
              (relay/request-event subscription-id {})))))
   (testing "Cant override kinds"
     (let [subscription-id (mg/generate :string)]
-      (is (= ["REQ" subscription-id {:kinds [1]}]
+      (is (= ["REQ" subscription-id {:kinds [1] :limit 10}]
              (relay/request-event subscription-id {:kinds [2]})))))
   (testing "Include limit filter"
     (let [subscription-id (mg/generate :string)]

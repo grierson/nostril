@@ -1,15 +1,18 @@
-(ns nostril.driven.hato-test
+(ns nostril.core-test
   (:require
    [clojure.core.async :as async]
    [clojure.test :refer [deftest is]]
-   [hashp.core]
    [jsonista.core :as json]
    [malli.core :as m]
    [malli.generator :as mg]
    [malli.transform :as mt]
-   [nostril.driven.relay :as relay :refer [request-event]]
+   [nostril.core :as nostril]
+   [nostril.driven.event-store :as event-store]
+   [nostril.driven.relay :as relay]
+   [nostril.driving.ports :as driving-ports]
    [nostril.types :as types]
    [org.httpkit.server :as http-kit]
+   [awaitility-clj.core :refer [wait-for]]
    [prestancedesign.get-port :refer [get-port]]))
 
 (defn create-ws-server
@@ -30,20 +33,24 @@
      :messages messages
      :port port}))
 
-(deftest make-connection!-test
+(deftest application-test
   (let [event (mg/generate types/ResponseEvent)
+        req-event (relay/request-event)
         {:keys [messages port]} (create-ws-server event)
         url (str "ws://localhost:" port)
-        {:keys [in-channel out-channel]} (relay/make-connection! {:ws-type :hato :url url})
-        req-event (request-event)
-        _ (async/put! in-channel req-event)
+        event-store (event-store/make-atom-event-store)
+        application (nostril/make-application {:event-store event-store})
+        _ (driving-ports/for-add-relay! application url)
+        _ (driving-ports/for-send!
+           application
+           url
+           req-event)
         message (async/<!! messages)
-        out (async/<!! out-channel)]
+        _ (wait-for {:at-most [1 :seconds]}
+                    (fn [] (>= 1 (count (event-store/fetch-all event-store)))))
+        stored-events (event-store/fetch-all event-store)]
     (is (= req-event
            (m/decode types/RequestEvent
                      (json/read-value (json/read-value message) json/keyword-keys-object-mapper)
                      mt/string-transformer)))
-    (is (= event
-           (m/decode types/ResponseEvent
-                     (json/read-value (str out) json/keyword-keys-object-mapper)
-                     mt/string-transformer)))))
+    (is (= event (first stored-events)))))

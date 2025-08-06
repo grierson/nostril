@@ -2,5 +2,4 @@
 
 (defprotocol DrivingPorts
   (for-add-relay! [this url])
-  (for-send! [this url event])
-  (for-get-events [this]))
+  (for-send! [this url event]))

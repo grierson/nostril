@@ -1,4 +1,4 @@
-(ns nostril.driven.event-handler)
+(ns nostril.driven.event-store)
 
 (defprotocol EventStore
   (fetch-all [_this])
