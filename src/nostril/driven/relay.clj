@@ -4,11 +4,12 @@
   (:require
    [clojure.core.async :as async]
    [clojure.pprint :as pprint]
+   [hashp.core]
    [hato.websocket :as hato]
    [jsonista.core :as json]
    [malli.core :as m]
    [malli.transform :as mt]
-   [hashp.core]
+   [nostril.driven.event-store :as event-store]
    [nostril.types :as types]))
 
 (defn request-event
@@ -48,6 +49,19 @@
         (assoc :out-channel out-channel)
         (assoc :websocket websocket))))
 
+(defn consume [event-handler {:keys [in-channel out-channel]}]
+  (async/go-loop []
+    (let [msg (async/<! out-channel)
+          [event-type subscription-id :as event] (read-event (json/read-value (str msg) json/keyword-keys-object-mapper))]
+      (if (= event-type "EOSE")
+        (do
+          (println "EOSE event recieved - closing subscription")
+          (async/>! in-channel (close-event subscription-id)))
+        (do
+          (println "Event: " event)
+          (event-store/add-event! event-handler event)
+          (recur))))))
+
 (defmethod close-connection! :hato [{:keys [websocket in-channel out-channel]}]
   (hato/close! websocket)
   (async/close! in-channel)
@@ -56,6 +70,7 @@
 (comment
   "Using Hato websockets"
   (def hato-damus-connection (make-connection! {:ws-type :hato :url  "wss://relay.damus.io"}))
+  (def events-handler (event-store/make-atom-event-store))
   (async/>!! (:in-channel hato-damus-connection) (request-event))
-  (consume hato-damus-connection)
+  (consume events-handler hato-damus-connection)
   (close-connection! hato-damus-connection))
