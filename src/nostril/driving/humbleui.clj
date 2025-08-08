@@ -1,9 +1,15 @@
 (ns nostril.driving.humbleui
   (:require
    [io.github.humbleui.ui :as ui]
-   [nostril.core :as nostril]))
+   [nostril.core :as nostril]
+   [nostril.driven.relay :as relay]
+   [nostril.driving.ports :as driving-ports]
+   [nostril.util :as util]))
 
 (def ^:dynamic *editing* false)
+
+(defonce *user-interface (atom nil))
+(defonce *application (nostril/make-application))
 
 (defn cursor-in [*signal path]
   (let [*res (ui/signal (get-in @*signal path))]
@@ -26,11 +32,13 @@
 (defn cursor [*signal key]
   (cursor-in *signal [key]))
 
-(def *state
+(def *ui-state
   (ui/signal
-   {:new-relay {:text "wss://relay.damus.io"}}))
+   {:events []
+    :new-relay {:text "wss://relay.damus.io"}}))
 
-(def *new-relay-input (cursor *state :new-relay))
+(def *new-relay-input (cursor *ui-state :new-relay))
+(def *events (cursor *ui-state :events))
 
 (defn relay-input []
   [ui/rect {:paint {:fill 0xFFFEFEFE}}
@@ -42,33 +50,51 @@
         [ui/with-cursor {:cursor :ibeam}
          [ui/text-input {:*state *new-relay-input}]]]]]]]])
 
-(defn draw-event [{:keys [content]}]
+(defn draw-event [[_type _subid {:keys [content created_at]}]]
   [ui/rect {:paint {:fill 0xFFFEFEFE}}
-   [ui/size {:height 66}
-    [ui/label content]]])
+   [ui/column
+    [ui/gap {:height 10}]
+    [ui/label (str content created_at)]]])
 
-(defn main-view [{:keys [relays event-store]}]
+(defn main-view [application]
   [ui/hsplit
    {:width 250}
    [ui/column
     [ui/label {:font-size 50} "Nostril"]
     [ui/text-input {}]
     (relay-input)
-    [ui/button {:on-click (fn [_] (println "hello"))} [ui/label "Add Relay"]]
+    [ui/button
+     {:on-click (fn [_]
+                  (driving-ports/for-add-relay! application (get-in @*ui-state [:new-relay :text]))
+                  (println "added relay"))} [ui/label "Add Relay"]]
+    [ui/button
+     {:on-click (fn [_]
+                  (driving-ports/for-send! application
+                                           (get-in @*ui-state [:new-relay :text])
+                                           (relay/request-event {:since (- (util/now) 3600)
+                                                                 :until (util/now)
+                                                                 :limit 10}))
+                  (println "fetch"))} [ui/label "Fetch events"]]
+    [ui/button
+     {:on-click (fn [_]
+                  (let [events (driving-ports/for-getting-events *application)]
+                    (swap! *ui-state update :events into events)
+                    (println "update")))}
+     [ui/label "Update events"]]
     [ui/gap {:height 20}]
     [ui/label {:font-size 30} "Relays"]
     [ui/gap {:height 20}]
-    [ui/label "ws://sample.com"]]
+    [ui/column
+     (map (fn [relay] [ui/label relay]) (keys @(:relays application)))]]
    [ui/column
     [ui/label {:font-size 50} "Events"]
-    (map draw-event [{:content "this"} {:content "world"} {:content "this"}])]])
+    [ui/vscroll
+     [ui/column (map draw-event @*events)]]]])
 
-(defonce *app (atom nil))
-(defonce *state (atom (nostril/make-application)))
-(reset! *app (fn [] (main-view @*state)))
+(reset! *user-interface (fn [] (main-view *application)))
 
 (defn -main []
-  (ui/start-app! (ui/window {:title "Humble 🐝 UI"} *app)))
+  (ui/start-app! (ui/window {:title "Humble 🐝 UI"} *user-interface)))
 
 (comment
   (-main)

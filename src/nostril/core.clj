@@ -4,14 +4,15 @@
    [hashp.core]
    [nostril.driven.event-store :as event-store]
    [nostril.driven.relay :as relay]
-   [nostril.driving.humbleui :as humbleui]
    [nostril.driving.ports :as driving-ports]
    [nostril.util :as util]))
 
 (defrecord Application [event-handler relays]
   driving-ports/DrivingPorts
+  (for-getting-relays [_this] @relays)
+  (for-getting-events [_this] (event-store/fetch-all event-handler))
   (for-add-relay! [_this url]
-    (let [connection (relay/make-connection! {:ws-type :hato :url url})]
+    (let [connection #p (relay/make-connection! {:ws-type :hato :url url})]
       (swap! relays assoc url connection)
       (relay/consume event-handler connection)))
   (for-send! [_this url event]
@@ -24,9 +25,7 @@
           relays (atom {})}}]
    (->Application event-store relays)))
 
-(comment
-  (make-application)
-  (humbleui/make-app (make-application)))
+(comment (make-application))
 
 (comment
   (def damus-url "wss://relay.damus.io")
