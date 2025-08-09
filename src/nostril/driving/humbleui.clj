@@ -54,13 +54,9 @@
 
 (defn relay-input []
   [ui/rect {:paint {:fill 0xFFFEFEFE}}
-   [ui/size {:height 66}
-    [ui/shadow-inset {:dy -2, :blur 1, :color 0x08000000}
-     [ui/align {:y :center}
-      [ui/focusable {}
-       [ui/on-key-focused {:keymap {}}
-        [ui/with-cursor {:cursor :ibeam}
-         [ui/text-input {:*state *new-relay-input}]]]]]]]])
+   [ui/focusable {}
+    [ui/on-key-focused {:keymap {}}
+     [ui/text-input {:*state *new-relay-input}]]]])
 
 (defn draw-event [[_type _subid {:keys [content created_at]}]]
   [ui/rect {:paint {:fill 0xFFFEFEFE}}
@@ -78,7 +74,6 @@
    {:width 250}
    [ui/column
     [ui/label {:font-size 50} "Nostril"]
-    [ui/text-input {}]
     (relay-input)
     [ui/button
      {:on-click (fn [_]
@@ -94,7 +89,7 @@
                   (println "fetch"))} [ui/label "Fetch events"]]
     [ui/button
      {:on-click (fn [_]
-                  (let [events (driving-ports/for-getting-events *application)]
+                  (let [events (driving-ports/for-getting-events application)]
                     (swap! *ui-state update :events into events)
                     (println "update")))}
      [ui/label "Update events"]]
