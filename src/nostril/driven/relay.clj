@@ -49,7 +49,7 @@
         (assoc :out-channel out-channel)
         (assoc :websocket websocket))))
 
-(defn consume [event-handler {:keys [in-channel out-channel]}]
+(defn consume [add-event-fn {:keys [in-channel out-channel]}]
   (async/go-loop []
     (let [msg (async/<! out-channel)
           [event-type subscription-id :as event] (read-event (json/read-value (str msg) json/keyword-keys-object-mapper))]
@@ -59,7 +59,7 @@
           (async/>! in-channel (close-event subscription-id)))
         (do
           (println "Event: " event)
-          (event-store/add-event! event-handler event)
+          (add-event-fn event)
           (recur))))))
 
 (defmethod close-connection! :hato [{:keys [websocket in-channel out-channel]}]

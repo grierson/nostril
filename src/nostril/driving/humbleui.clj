@@ -2,14 +2,26 @@
   (:require
    [io.github.humbleui.ui :as ui]
    [nostril.core :as nostril]
+   [nostril.driven.event-store :as event-store]
    [nostril.driven.relay :as relay]
    [nostril.driving.ports :as driving-ports]
-   [nostril.util :as util]))
+   [nostril.util :as util]
+   [tick.core :as t]
+   [nostril.dummy :as dummy]))
+
+(defn unix-timestamp->str [timestamp]
+  (let [duration (t/new-duration timestamp :seconds)
+        instant (t/instant duration)
+        zdt (t/zoned-date-time instant)
+        formatter (t/formatter "yyyy-MM-dd HH:mm:ss")]
+    (t/format formatter zdt)))
 
 (def ^:dynamic *editing* false)
 
 (defonce *user-interface (atom nil))
-(defonce *application (nostril/make-application))
+(defonce *application
+  (nostril/make-application
+   {:event-store (event-store/make-atom-event-store dummy/events)}))
 
 (defn cursor-in [*signal path]
   (let [*res (ui/signal (get-in @*signal path))]
@@ -32,7 +44,7 @@
 (defn cursor [*signal key]
   (cursor-in *signal [key]))
 
-(def *ui-state
+(defonce *ui-state
   (ui/signal
    {:events []
     :new-relay {:text "wss://relay.damus.io"}}))
@@ -54,7 +66,12 @@
   [ui/rect {:paint {:fill 0xFFFEFEFE}}
    [ui/column
     [ui/gap {:height 10}]
-    [ui/label (str content created_at)]]])
+    [ui/label content]
+    [ui/gap {:height 10}]
+    [ui/label (unix-timestamp->str created_at)]
+    [ui/gap {:height 10}]]])
+
+(comment (user/reload))
 
 (defn main-view [application]
   [ui/hsplit
@@ -65,15 +82,15 @@
     (relay-input)
     [ui/button
      {:on-click (fn [_]
-                  (driving-ports/for-add-relay! application (get-in @*ui-state [:new-relay :text]))
+                  (driving-ports/for-adding-relay! application (get-in @*ui-state [:new-relay :text]))
                   (println "added relay"))} [ui/label "Add Relay"]]
     [ui/button
      {:on-click (fn [_]
-                  (driving-ports/for-send! application
-                                           (get-in @*ui-state [:new-relay :text])
-                                           (relay/request-event {:since (- (util/now) 3600)
-                                                                 :until (util/now)
-                                                                 :limit 10}))
+                  (driving-ports/for-sending-event! application
+                                                    (get-in @*ui-state [:new-relay :text])
+                                                    (relay/request-event {:since (- (util/now) 3600)
+                                                                          :until (util/now)
+                                                                          :limit 10}))
                   (println "fetch"))} [ui/label "Fetch events"]]
     [ui/button
      {:on-click (fn [_]

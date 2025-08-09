@@ -10,12 +10,14 @@
 (defrecord Application [event-handler relays]
   driving-ports/DrivingPorts
   (for-getting-relays [_this] @relays)
+  (for-adding-event! [_this event]
+    (event-store/add-event! event-handler event))
   (for-getting-events [_this] (event-store/fetch-all event-handler))
-  (for-add-relay! [_this url]
-    (let [connection #p (relay/make-connection! {:ws-type :hato :url url})]
+  (for-adding-relay! [this url]
+    (let [connection (relay/make-connection! {:ws-type :hato :url url})]
       (swap! relays assoc url connection)
-      (relay/consume event-handler connection)))
-  (for-send! [_this url event]
+      (relay/consume (partial driving-ports/for-adding-event! this) connection)))
+  (for-sending-event! [_this url event]
     (async/put! (get-in @relays [url :in-channel]) event)))
 
 (defn make-application
@@ -25,23 +27,22 @@
           relays (atom {})}}]
    (->Application event-store relays)))
 
-(comment (make-application))
-
 (comment
   (def damus-url "wss://relay.damus.io")
   (def snort-url "wss://relay.snort.social")
 
   (def application (make-application))
 
-  (driving-ports/for-add-relay! application damus-url)
-  (driving-ports/for-send! application
-                           damus-url
-                           (relay/request-event {:since (- (util/now) 3600)
-                                                 :until (util/now)
-                                                 :limit 10}))
-  (driving-ports/for-add-relay! application snort-url)
-  (driving-ports/for-send! application
-                           snort-url
-                           (relay/request-event {:since (- (util/now) 3600)
-                                                 :until (util/now)
-                                                 :limit 10})))
+  (driving-ports/for-adding-relay! application damus-url)
+  (driving-ports/for-sending-event! application
+                                    damus-url
+                                    (relay/request-event {:since (- (util/now) 360000)
+                                                          :until (util/now)
+                                                          :limit 10}))
+  (driving-ports/for-getting-events application)
+  (driving-ports/for-adding-relay! application snort-url)
+  (driving-ports/for-sending-event! application
+                                    snort-url
+                                    (relay/request-event {:since (- (util/now) 3600)
+                                                          :until (util/now)
+                                                          :limit 10})))

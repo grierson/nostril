@@ -9,5 +9,6 @@
   (fetch-all [_this] @events)
   (add-event! [_this event] (swap! events conj event)))
 
-(defn make-atom-event-store []
-  (->AtomEventStore (atom [])))
+(defn make-atom-event-store
+  ([] (make-atom-event-store []))
+  ([seed] (->AtomEventStore (atom seed))))
